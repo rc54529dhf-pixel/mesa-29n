@@ -1,7 +1,10 @@
-import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Link, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
+// Self-hosted fonts: the two files every page needs are preloaded.
+import geistFont from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url";
+import geistMonoFont from "@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url";
 
 const APP_NAME = "Mesa 29N";
 
@@ -64,18 +67,23 @@ export const Route = createRootRoute({
       meta,
       links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap",
-      },
+      { rel: "preload", as: "font", type: "font/woff2", href: geistFont, crossOrigin: "anonymous" },
+      { rel: "preload", as: "font", type: "font/woff2", href: geistMonoFont, crossOrigin: "anonymous" },
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/__grok/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
       ],
     };
   },
+  notFoundComponent: () => (
+    <main className="mx-auto flex min-h-screen w-full max-w-[1200px] flex-col items-start justify-center gap-4 px-5 md:px-8">
+      <p className="font-mono text-[11px] tracking-[0.08em] text-muted uppercase">404</p>
+      <h1 className="text-4xl leading-tight font-medium tracking-[-0.035em]">This page is not on the desk.</h1>
+      <Link to="/{-$section}" params={{ section: undefined }} className="font-semibold underline decoration-gold underline-offset-4">
+        Mesa 29N
+      </Link>
+    </main>
+  ),
   component: () => (
     <html lang="en" className="antialiased" suppressHydrationWarning>
       <head>

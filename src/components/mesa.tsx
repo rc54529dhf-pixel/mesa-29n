@@ -1,5 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, ChevronDown, ExternalLink, Moon, Sun } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
+import {
+  ArrowRight,
+  BadgeCheck,
+  BarChart3,
+  BookOpen,
+  Building2,
+  Calculator,
+  CalendarClock,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  CircleDot,
+  ClipboardList,
+  Clock,
+  Columns3,
+  ExternalLink,
+  IdCard,
+  Landmark,
+  Layers,
+  MapPin,
+  Moon,
+  Newspaper,
+  Scale,
+  Sun,
+  Timer,
+  Users,
+  Vote,
+  type LucideIcon,
+} from "lucide-react";
 import {
   CALENDAR,
   CANDIDATES,
@@ -35,18 +64,18 @@ import {
   type Poll,
   type WingId,
 } from "@/data/election";
+import type { Tab } from "@/lib/sections";
 
-type Tab = "now" | "polls" | "blocs" | "count" | "vote" | "sources";
 type Filter = "all" | Kind;
 type Edition = "day" | "night";
 
-const TABS: { id: Tab; label: Bi }[] = [
-  { id: "now", label: { en: "Now", es: "Ahora" } },
-  { id: "polls", label: { en: "Polls", es: "Sondeos" } },
-  { id: "blocs", label: { en: "Blocs", es: "Bloques" } },
-  { id: "count", label: { en: "Count", es: "Recuento" } },
-  { id: "vote", label: { en: "Vote", es: "Voto" } },
-  { id: "sources", label: { en: "Sources", es: "Fuentes" } },
+const TABS: { id: Tab; icon: LucideIcon; label: Bi }[] = [
+  { id: "now", icon: Clock, label: { en: "Now", es: "Ahora" } },
+  { id: "polls", icon: BarChart3, label: { en: "Polls", es: "Sondeos" } },
+  { id: "blocs", icon: Columns3, label: { en: "Blocs", es: "Bloques" } },
+  { id: "count", icon: Landmark, label: { en: "Count", es: "Recuento" } },
+  { id: "vote", icon: Vote, label: { en: "Vote", es: "Voto" } },
+  { id: "sources", icon: BookOpen, label: { en: "Sources", es: "Fuentes" } },
 ];
 
 const PHASE_LABEL: Record<Phase, Bi> = {
@@ -75,6 +104,10 @@ const FILTERS: { id: Filter; label: Bi }[] = [
 
 const HEADLINE_PARTIES: PartyId[] = ["pp", "psoe", "vox"];
 
+const AGENCY: Bi = { en: "Survey agency", es: "Encuestadora" };
+
+const RULE_ICONS: LucideIcon[] = [Layers, IdCard, Landmark, BadgeCheck];
+
 /* Shared type and layout recipes. Interface colour is ink, paper and gold only. */
 const WRAP = "mx-auto w-full max-w-[1200px] px-5 md:px-8";
 const LABEL = "font-mono text-[11px] tracking-[0.08em] uppercase";
@@ -86,7 +119,7 @@ const BIG = "leading-none tracking-[-0.045em] tabular-nums";
 const LINK =
   "inline-flex min-h-11 items-center gap-1.5 font-semibold underline decoration-gold underline-offset-4";
 const TABLE_COLS =
-  "grid grid-cols-[minmax(190px,1.6fr)_minmax(130px,1fr)_repeat(3,60px)_repeat(3,84px)_88px_20px] gap-x-4";
+  "grid grid-cols-[minmax(210px,1.6fr)_minmax(130px,1fr)_repeat(3,60px)_repeat(3,84px)_88px_20px] gap-x-4";
 const NUM = "text-right font-mono text-[13.5px] tabular-nums";
 const LEDGER_COLS = "grid grid-cols-[minmax(0,1fr)_44px_92px_52px] gap-x-3";
 
@@ -148,20 +181,63 @@ function rightBlocSpan(): { low: number; high: number; n: number } | null {
   return n > 0 ? { low, high, n } : null;
 }
 
-type SpreadRow = { id: string; name: string; low: number; high: number; split: boolean };
+/**
+ * How a release is named: the media outlet first, then the survey agency that
+ * did the fieldwork. The state pollster and the models keep their own name.
+ */
+function pollNames(
+  poll: Poll,
+  lang: Lang,
+): { title: string; sub: string; agency: string; icon: LucideIcon } {
+  if (poll.kind === "media") {
+    return poll.outlet === poll.pollster
+      ? { title: poll.pollster, sub: t(AGENCY, lang), agency: "", icon: ClipboardList }
+      : {
+          title: poll.outlet,
+          sub: `${t(AGENCY, lang)}: ${poll.pollster}`,
+          agency: poll.pollster,
+          icon: Newspaper,
+        };
+  }
+  if (poll.kind === "official-poll") {
+    return {
+      title: poll.pollster,
+      sub: `${poll.outlet} · ${t({ en: "State survey agency", es: "Instituto público de encuestas" }, lang)}`,
+      agency: "",
+      icon: Landmark,
+    };
+  }
+  return {
+    title: poll.pollster,
+    sub: poll.outlet === poll.pollster ? t({ en: "Model", es: "Modelo" }, lang) : poll.outlet,
+    agency: "",
+    icon: Calculator,
+  };
+}
+
+type SpreadRow = {
+  id: string;
+  title: string;
+  agency: string;
+  low: number;
+  high: number;
+  split: boolean;
+};
 
 /** One row per media poll: PP low + Vox low to PP high + Vox high, or the printed pair. */
-function spreadRows(): SpreadRow[] {
+function spreadRows(lang: Lang): SpreadRow[] {
   const split: SpreadRow[] = [];
   const whole: SpreadRow[] = [];
   for (const poll of POLLS) {
     if (poll.kind !== "media") continue;
+    const names = pollNames(poll, lang);
     const pp = poll.seats.find((s) => s.party === "pp");
     const vox = poll.seats.find((s) => s.party === "vox");
     if (pp && vox) {
       split.push({
         id: poll.id,
-        name: poll.pollster,
+        title: names.title,
+        agency: names.agency,
         low: pp.low + vox.low,
         high: pp.high + vox.high,
         split: true,
@@ -169,7 +245,8 @@ function spreadRows(): SpreadRow[] {
     } else if (poll.pair !== undefined) {
       whole.push({
         id: poll.id,
-        name: poll.pollster,
+        title: names.title,
+        agency: names.agency,
         low: poll.pair,
         high: poll.pair,
         split: false,
@@ -196,6 +273,40 @@ function partyShorts(ids: PartyId[]): string {
   return ids.map((id) => PARTIES[id].short).join(" · ");
 }
 
+/** A link to a section. "Now" is the home page; the others have their own address. */
+function SectionLink({
+  to,
+  className,
+  current,
+  children,
+}: {
+  to: Tab;
+  className?: string;
+  current?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      to="/{-$section}"
+      params={{ section: to === "now" ? undefined : to }}
+      aria-current={current ? "page" : undefined}
+      className={className}
+    >
+      {children}
+    </Link>
+  );
+}
+
+/** Spain's flag in its plain civil form: three bands, no coat of arms. */
+function SpainFlag() {
+  return (
+    <svg viewBox="0 0 24 16" aria-hidden="true" className="h-3 w-[18px] shrink-0 rounded-[1px]">
+      <rect width="24" height="16" fill="#AA151B" />
+      <rect y="4" width="24" height="8" fill="#F1BF00" />
+    </svg>
+  );
+}
+
 function Badge({ kind, lang }: { kind: Kind | "official" | "law"; lang: Lang }) {
   const label =
     kind === "official"
@@ -204,17 +315,28 @@ function Badge({ kind, lang }: { kind: Kind | "official" | "law"; lang: Lang }) 
         ? t({ en: "Official · law", es: "Oficial · norma" }, lang)
         : t(KIND_LABEL[kind], lang);
   const tone = kind === "media" ? "text-ink" : kind === "model" ? "text-muted" : "text-gold-ink";
-  const mark =
+  const Icon =
     kind === "media"
-      ? "border-[1.5px] border-ink"
+      ? Newspaper
       : kind === "model"
-        ? "border-[1.5px] border-dashed border-muted"
-        : "bg-gold";
+        ? Calculator
+        : kind === "law"
+          ? Scale
+          : BadgeCheck;
   return (
     <span className={`inline-flex items-center gap-2 ${LABEL} ${tone}`}>
-      <span aria-hidden="true" className={`size-2 shrink-0 ${mark}`} />
+      <Icon className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
       {label}
     </span>
+  );
+}
+
+function Heading({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+  return (
+    <h2 className={`flex items-center gap-2.5 ${H2}`}>
+      <Icon className="size-6 shrink-0 text-gold-ink" strokeWidth={1.75} aria-hidden="true" />
+      {children}
+    </h2>
   );
 }
 
@@ -290,6 +412,8 @@ function SourceLink({ poll }: { poll: Poll }) {
 
 /** Phone and tablet: one poll per block, everything visible. */
 function PollCard({ poll, lang }: { poll: Poll; lang: Lang }) {
+  const names = pollNames(poll, lang);
+  const Icon = names.icon;
   return (
     <article className="flex flex-col gap-3 border-t border-ink pt-5 pb-6">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -297,9 +421,12 @@ function PollCard({ poll, lang }: { poll: Poll; lang: Lang }) {
         <span className="text-[13px] text-muted">{t(poll.when, lang)}</span>
       </div>
       <div>
-        <h3 className={H3}>{poll.pollster}</h3>
-        <p className="text-sm text-muted">
-          {poll.outlet}
+        <h3 className={`flex items-center gap-2 ${H3}`}>
+          <Icon className="size-5 shrink-0 text-muted" strokeWidth={1.75} aria-hidden="true" />
+          {names.title}
+        </h3>
+        <p className="mt-0.5 text-sm text-muted">
+          {names.sub}
           {poll.sample ? ` · ${t(poll.sample, lang)}` : ""}
         </p>
       </div>
@@ -328,7 +455,7 @@ function Cell({ value }: { value: string }) {
   return <span className={`${NUM} ${value === "—" ? "text-muted" : ""}`}>{value}</span>;
 }
 
-/** Desktop: every release on one comparable grid. A row opens to show its note. */
+/** Desktop: every release on one comparable grid, each with its graph and note. */
 function PollTable({
   polls,
   lang,
@@ -354,7 +481,7 @@ function PollTable({
         <span />
       </div>
       <div className={`${TABLE_COLS} items-center pb-3 text-[13px] font-semibold`}>
-        <span>{t({ en: "Release", es: "Entrega" }, lang)}</span>
+        <span>{t({ en: "Outlet and survey agency", es: "Medio y encuestadora" }, lang)}</span>
         <span>{t({ en: "Fieldwork and sample", es: "Trabajo de campo y muestra" }, lang)}</span>
         {HEADLINE_PARTIES.map((id) => (
           <PartyHead key={`share-${id}`} id={id} />
@@ -375,6 +502,8 @@ function PollTable({
             </div>
             {group.map((poll) => {
               const on = open.includes(poll.id);
+              const names = pollNames(poll, lang);
+              const Icon = names.icon;
               return (
                 <div key={poll.id} className="border-t border-line">
                   <button
@@ -384,8 +513,15 @@ function PollTable({
                     className={`${TABLE_COLS} w-full items-baseline py-3.5 text-left`}
                   >
                     <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="text-[15.5px] font-semibold">{poll.pollster}</span>
-                      <span className="text-[13px] text-muted">{poll.outlet}</span>
+                      <span className="flex items-center gap-2 text-[15.5px] font-semibold">
+                        <Icon
+                          className="size-4 shrink-0 text-muted"
+                          strokeWidth={1.75}
+                          aria-hidden="true"
+                        />
+                        {names.title}
+                      </span>
+                      <span className="pl-6 text-[13px] text-muted">{names.sub}</span>
                     </span>
                     <span className="flex min-w-0 flex-col gap-0.5 text-[13px] leading-snug">
                       <span>{t(poll.when, lang)}</span>
@@ -518,7 +654,7 @@ function WingBar({ parts }: { parts: { key: string; pct: number; color: string }
   );
 }
 
-function BlocsView({ lang, onPolls }: { lang: Lang; onPolls: () => void }) {
+function BlocsView({ lang }: { lang: Lang }) {
   const official = resultByWing();
   const model = POLLS.find((poll) => poll.id === "votantonio");
   const modelSlices = model ? slicesOf(model) : null;
@@ -578,9 +714,9 @@ function BlocsView({ lang, onPolls }: { lang: Lang; onPolls: () => void }) {
         className={`${WRAP} flex flex-wrap items-start gap-x-16 gap-y-12 pt-10 pb-12 md:pt-16`}
       >
         <div className="min-w-0 flex-[1_1_440px]">
-          <h2 className={H2}>
+          <Heading icon={Landmark}>
             {t({ en: "2023 Congress, by wing", es: "Congreso de 2023, por bloque" }, lang)}
-          </h2>
+          </Heading>
           <p className="mt-3 max-w-[70ch] text-[15px] leading-[1.6] text-muted">
             {t(
               {
@@ -610,9 +746,9 @@ function BlocsView({ lang, onPolls }: { lang: Lang; onPolls: () => void }) {
         {model && modelSlices && (
           <div className="flex min-w-0 flex-[1_1_440px] flex-col gap-3">
             <Badge kind="model" lang={lang} />
-            <h2 className={H2}>
+            <Heading icon={Calculator}>
               {t({ en: "Against one full model", es: "Frente a un modelo completo" }, lang)}
-            </h2>
+            </Heading>
             <p className="max-w-[70ch] text-[15px] leading-[1.6]">
               {t(
                 {
@@ -687,9 +823,9 @@ function BlocsView({ lang, onPolls }: { lang: Lang; onPolls: () => void }) {
 
       <section className={`${WRAP} pb-16`}>
         <div className="border-t border-ink pt-8">
-          <h2 className={H2}>
+          <Heading icon={BarChart3}>
             {t({ en: "Every frozen release", es: "Cada entrega congelada" }, lang)}
-          </h2>
+          </Heading>
           <p className="mt-3 max-w-[75ch] text-[15px] leading-[1.6] text-muted">
             {t(
               {
@@ -705,10 +841,10 @@ function BlocsView({ lang, onPolls }: { lang: Lang; onPolls: () => void }) {
             <PollWingRow key={poll.id} poll={poll} lang={lang} />
           ))}
         </div>
-        <button type="button" onClick={onPolls} className={`${LINK} mt-4 text-[15px]`}>
+        <SectionLink to="polls" className={`${LINK} mt-4 text-[15px]`}>
           {t({ en: "Open the poll cards", es: "Abrir las fichas de sondeos" }, lang)}
           <ArrowRight className="size-4" aria-hidden="true" />
-        </button>
+        </SectionLink>
       </section>
     </>
   );
@@ -717,6 +853,7 @@ function BlocsView({ lang, onPolls }: { lang: Lang; onPolls: () => void }) {
 function PollWingRow({ poll, lang }: { poll: Poll; lang: Lang }) {
   const slices = slicesOf(poll);
   const other = otherShare(poll);
+  const names = pollNames(poll, lang);
   const shareParts: { key: string; pct: number; color: string }[] = WING_ORDER.map((id) => ({
     key: id,
     pct: slices[id].pct ?? 0,
@@ -730,10 +867,8 @@ function PollWingRow({ poll, lang }: { poll: Poll; lang: Lang }) {
     <article className="grid gap-x-12 gap-y-4 border-t border-line py-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
       <div className="flex flex-col items-start gap-1.5">
         <Badge kind={poll.kind} lang={lang} />
-        <h3 className="text-[15.5px] font-semibold">
-          {poll.pollster}
-          <span className="font-normal text-muted"> · {poll.outlet}</span>
-        </h3>
+        <h3 className="text-[15.5px] font-semibold">{names.title}</h3>
+        <p className="text-[13px] text-muted">{names.sub}</p>
         <p className="text-[13px] text-muted">{t(poll.when, lang)}</p>
       </div>
       <div>
@@ -780,7 +915,7 @@ function PollWingRow({ poll, lang }: { poll: Poll; lang: Lang }) {
 }
 
 function SpreadChart({ lang }: { lang: Lang }) {
-  const rows = spreadRows();
+  const rows = spreadRows(lang);
   if (rows.length === 0) return null;
   const lows = rows.map((row) => row.low);
   const highs = rows.map((row) => row.high);
@@ -792,7 +927,7 @@ function SpreadChart({ lang }: { lang: Lang }) {
     if (tick - MAJORITY >= 10) ticks.push(tick);
   }
   const grid =
-    "grid grid-cols-[84px_minmax(0,1fr)_58px] gap-3 sm:grid-cols-[96px_minmax(0,1fr)_64px] sm:gap-4";
+    "grid grid-cols-[104px_minmax(0,1fr)_58px] gap-3 sm:grid-cols-[132px_minmax(0,1fr)_64px] sm:gap-4";
 
   return (
     <figure className="mt-2 border-t border-ink pt-3">
@@ -825,8 +960,17 @@ function SpreadChart({ lang }: { lang: Lang }) {
         {rows.map((row) => {
           const point = row.low === row.high;
           return (
-            <li key={row.id} className={`${grid} h-9 items-center border-t border-line`}>
-              <span className="truncate text-[13.5px] font-semibold">{row.name}</span>
+            <li key={row.id} className={`${grid} h-12 items-center border-t border-line`}>
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate text-[13.5px] leading-tight font-semibold">
+                  {row.title}
+                </span>
+                {row.agency && (
+                  <span className="truncate text-[11.5px] leading-tight text-muted">
+                    {row.agency}
+                  </span>
+                )}
+              </span>
               <span className="relative block h-full" aria-hidden="true">
                 <span
                   className="absolute inset-y-0 w-px bg-gold"
@@ -853,8 +997,8 @@ function SpreadChart({ lang }: { lang: Lang }) {
       <figcaption className="border-t border-line pt-3 text-[13px] leading-normal text-muted">
         {t(
           {
-            en: `A bar runs from a poll’s PP low plus Vox low to its PP high plus Vox high. A dot is a single printed figure. A hollow dot is a release that printed the pair without a split. The scale runs from ${start} to ${end} seats. The gold line is ${MAJORITY}.`,
-            es: `Cada barra va del suelo del PP más el suelo de Vox al techo del PP más el techo de Vox en ese sondeo. Un punto es una cifra única publicada. Un punto hueco es una entrega que publicó la suma sin reparto. La escala va de ${start} a ${end} escaños. La línea dorada es ${MAJORITY}.`,
+            en: `Each row is a media outlet, with its survey agency underneath. A bar runs from a poll’s PP low plus Vox low to its PP high plus Vox high. A dot is a single printed figure. A hollow dot is a release that printed the pair without a split. The scale runs from ${start} to ${end} seats. The gold line is ${MAJORITY}.`,
+            es: `Cada fila es un medio, con su encuestadora debajo. Cada barra va del suelo del PP más el suelo de Vox al techo del PP más el techo de Vox en ese sondeo. Un punto es una cifra única publicada. Un punto hueco es una entrega que publicó la suma sin reparto. La escala va de ${start} a ${end} escaños. La línea dorada es ${MAJORITY}.`,
           },
           lang,
         )}
@@ -863,17 +1007,7 @@ function SpreadChart({ lang }: { lang: Lang }) {
   );
 }
 
-function Nav({
-  tab,
-  setTab,
-  lang,
-  variant,
-}: {
-  tab: Tab;
-  setTab: (tab: Tab) => void;
-  lang: Lang;
-  variant: "top" | "dock";
-}) {
+function Nav({ tab, lang, variant }: { tab: Tab; lang: Lang; variant: "top" | "dock" }) {
   const shell =
     variant === "top"
       ? "hidden flex-wrap gap-1 lg:flex"
@@ -882,45 +1016,45 @@ function Nav({
     <nav className={shell} aria-label={t({ en: "Sections", es: "Secciones" }, lang)}>
       {TABS.map((item) => {
         const on = tab === item.id;
+        const Icon = item.icon;
         const tone =
           variant === "top"
-            ? `flex h-11 items-center border-b-2 px-3.5 text-sm ${
+            ? `flex h-11 items-center gap-2 border-b-2 px-3 text-sm ${
                 on
                   ? "border-gold font-semibold text-ink"
                   : "border-transparent font-medium text-muted"
               }`
-            : `flex h-14 flex-1 items-center justify-center border-t-2 text-xs ${
+            : `flex h-14 flex-1 flex-col items-center justify-center gap-1 border-t-2 text-[11px] ${
                 on
                   ? "border-gold font-bold text-ink"
                   : "border-transparent font-semibold text-muted"
               }`;
         return (
-          <button
-            key={item.id}
-            type="button"
-            aria-current={on ? "page" : undefined}
-            onClick={() => setTab(item.id)}
-            className={tone}
-          >
+          <SectionLink key={item.id} to={item.id} current={on} className={tone}>
+            <Icon
+              className={variant === "top" ? "size-4" : "size-[18px]"}
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
             {t(item.label, lang)}
-          </button>
+          </SectionLink>
         );
       })}
     </nav>
   );
 }
 
-export function Mesa() {
+export function Mesa({ tab, renderedAt }: { tab: Tab; renderedAt: number }) {
   const [lang, setLang] = useState<Lang>("en");
   const [edition, setEdition] = useState<Edition>("day");
   const [ready, setReady] = useState(false);
-  const [tab, setTab] = useState<Tab>("now");
-  // Real time on the server too, so the first paint already shows the right phase.
-  const [now, setNow] = useState<number>(() => Date.now());
+  // Starts from the server's render time so the first client render matches the
+  // HTML exactly, then ticks on the reader's own clock.
+  const [now, setNow] = useState<number>(renderedAt);
   const [filter, setFilter] = useState<Filter>("all");
   const [party, setParty] = useState<PartyId | null>(null);
-  const [openNotes, setOpenNotes] = useState<string[]>(["cis"]);
-  const [copied, setCopied] = useState(false);
+  // Graphs and notes are open for every release until the reader closes them.
+  const [openNotes, setOpenNotes] = useState<string[]>(() => POLLS.map((poll) => poll.id));
 
   useEffect(() => {
     try {
@@ -956,6 +1090,11 @@ export function Mesa() {
       ?.setAttribute("content", edition === "night" ? "#0b1320" : "#f7f6f2");
   }, [edition, ready]);
 
+  // A new section starts at the top of the page.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [tab]);
+
   const flipEdition = () => {
     const next: Edition = edition === "night" ? "day" : "night";
     setEdition(next);
@@ -964,11 +1103,6 @@ export function Mesa() {
     } catch {
       /* storage can be blocked; the choice lasts for this visit */
     }
-  };
-
-  const choose = (next: Tab) => {
-    setTab(next);
-    window.scrollTo(0, 0);
   };
 
   const phase = phaseAt(now);
@@ -982,37 +1116,6 @@ export function Mesa() {
   const toggleNote = (id: string) =>
     setOpenNotes((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
 
-  const copyStatus = async () => {
-    const lines = [
-      "Mesa 29N",
-      t(PHASE_LABEL[phase], lang),
-      silence
-        ? t(
-            {
-              en: "Poll publication ban in force in Spain.",
-              es: "Veda de publicación de sondeos en vigor en España.",
-            },
-            lang,
-          )
-        : t({ en: "Poll ban has ended.", es: "La veda de sondeos ha terminado." }, lang),
-      t(
-        {
-          en: "No official 2026 count on this desk. Last official Congress result is 23 July 2023.",
-          es: "No hay escrutinio oficial de 2026 en esta mesa. El último resultado oficial del Congreso es el 23 de julio de 2023.",
-        },
-        lang,
-      ),
-      "https://infoelectoral.interior.gob.es",
-    ];
-    try {
-      await navigator.clipboard.writeText(lines.join("\n"));
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-
   const phaseKicker = (
     <p className={`flex items-center gap-2.5 ${LABEL} text-gold-ink`}>
       <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-gold" />
@@ -1024,13 +1127,17 @@ export function Mesa() {
     <div className="flex min-h-screen flex-col bg-paper text-ink">
       <div className="bg-bar text-bar-ink">
         <div className={`${WRAP} flex flex-wrap justify-between gap-x-6 gap-y-0.5 py-2 ${LABEL}`}>
-          <span>
+          <span className="flex items-center gap-2">
+            <SpainFlag />
             {t({ en: "Spain · Congress and Senate", es: "España · Congreso y Senado" }, lang)}
           </span>
-          <span suppressHydrationWarning>
-            {madridClock(new Date(now), lang)}
-            {" · "}
-            {t({ en: "Madrid time", es: "Hora de Madrid" }, lang)}
+          <span className="flex items-center gap-2">
+            <Clock className="size-3 shrink-0" aria-hidden="true" />
+            <span suppressHydrationWarning>
+              {madridClock(new Date(now), lang)}
+              {" · "}
+              {t({ en: "Madrid time", es: "Hora de Madrid" }, lang)}
+            </span>
           </span>
         </div>
       </div>
@@ -1039,14 +1146,13 @@ export function Mesa() {
         <div
           className={`${WRAP} flex flex-wrap items-center justify-between gap-x-8 gap-y-1 py-2.5`}
         >
-          <button
-            type="button"
-            onClick={() => choose("now")}
+          <SectionLink
+            to="now"
             className="text-[26px] leading-[44px] font-semibold tracking-[-0.035em]"
           >
             Mesa 29N
-          </button>
-          <Nav tab={tab} setTab={choose} lang={lang} variant="top" />
+          </SectionLink>
+          <Nav tab={tab} lang={lang} variant="top" />
           <div className="flex items-center gap-2.5">
             <button
               type="button"
@@ -1105,7 +1211,8 @@ export function Mesa() {
                   )}
                 </h1>
                 <div>
-                  <p className={`${LABEL} text-muted`}>
+                  <p className={`flex items-center gap-2 ${LABEL} text-muted`}>
+                    <Timer className="size-3.5 shrink-0" aria-hidden="true" />
                     {target
                       ? t(target.label, lang)
                       : t({ en: "Scrutiny window", es: "Ventana de escrutinio" }, lang)}
@@ -1121,10 +1228,7 @@ export function Mesa() {
                         ] as const
                       ).map(([value, label]) => (
                         <div key={label.en} className="border-l border-line py-4 pl-2.5 md:pl-5">
-                          <div
-                            suppressHydrationWarning
-                            className={`text-[length:clamp(52px,2rem_+_5vw,104px)] ${BIG}`}
-                          >
+                          <div className={`text-[length:clamp(52px,2rem_+_5vw,104px)] ${BIG}`}>
                             {value}
                           </div>
                           <div className={`mt-2 ${LABEL} text-muted`}>{t(label, lang)}</div>
@@ -1182,34 +1286,48 @@ export function Mesa() {
                   [
                     [
                       CONGRESS,
+                      Landmark,
                       { en: "Congress", es: "Congreso" },
                       { en: "deputies", es: "diputados" },
                       false,
                     ],
                     [
                       MAJORITY,
+                      Scale,
                       { en: "Majority", es: "Mayoría" },
                       { en: "votes to invest, first round", es: "votos para investir, primera" },
                       true,
                     ],
                     [
                       SENATE_DIRECT,
+                      Building2,
                       { en: "Senate, direct", es: "Senado, directo" },
                       { en: "on this ballot", es: "en esta papeleta" },
                       false,
                     ],
                   ] as const
-                ).map(([value, label, caption, gold]) => (
+                ).map(([value, Icon, label, caption, gold]) => (
                   <div key={label.en} className="border-l border-line py-6 pr-1 pl-2.5 md:pl-5">
                     <p
                       className={`text-[length:clamp(40px,1.5rem_+_3.4vw,72px)] ${BIG} ${gold ? "text-gold-ink" : ""}`}
                     >
                       {value}
                     </p>
-                    <p className={`mt-3 ${LABEL} ${gold ? "text-gold-ink" : ""}`}>
+                    <p
+                      className={`mt-3 flex items-start gap-1.5 ${LABEL} ${gold ? "text-gold-ink" : ""}`}
+                    >
+                      <Icon className="mt-px size-3.5 shrink-0" aria-hidden="true" />
                       {t(label, lang)}
                     </p>
                     <p className="mt-1 text-sm leading-normal text-muted">{t(caption, lang)}</p>
+                    {gold && (
+                      <span className="mt-3 block h-1.5 max-w-[220px] bg-line" aria-hidden="true">
+                        <span
+                          className="block h-full bg-gold"
+                          style={{ width: `${(MAJORITY / CONGRESS) * 100}%` }}
+                        />
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1221,9 +1339,9 @@ export function Mesa() {
               {bloc && (
                 <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-5">
                   <Badge kind="media" lang={lang} />
-                  <h2 className={H2}>
+                  <Heading icon={BarChart3}>
                     {t({ en: "PP + Vox seat spread", es: "Horquilla de escaños PP + Vox" }, lang)}
-                  </h2>
+                  </Heading>
                   <div className="flex flex-wrap items-start gap-x-10 gap-y-4">
                     <p
                       className={`text-[length:clamp(60px,2rem_+_3.8vw,84px)] font-medium whitespace-nowrap ${BIG}`}
@@ -1241,11 +1359,7 @@ export function Mesa() {
                     </p>
                   </div>
                   <SpreadChart lang={lang} />
-                  <button
-                    type="button"
-                    onClick={() => choose("blocs")}
-                    className={`${LINK} self-start text-[15px]`}
-                  >
+                  <SectionLink to="blocs" className={`${LINK} self-start text-[15px]`}>
                     {t(
                       {
                         en: "See left, center and right",
@@ -1254,16 +1368,21 @@ export function Mesa() {
                       lang,
                     )}
                     <ArrowRight className="size-4" aria-hidden="true" />
-                  </button>
+                  </SectionLink>
                 </div>
               )}
 
               <aside className="min-w-0 flex-[1_1_380px]">
-                <h2 className={H2}>{t({ en: "Calendar", es: "Calendario" }, lang)}</h2>
-                <ol className="mt-4 border-b border-line">
-                  {CALENDAR.map((item) => {
+                <Heading icon={CalendarDays}>
+                  {t({ en: "Calendar", es: "Calendario" }, lang)}
+                </Heading>
+                {/* Latest first: what is still ahead sits on top, what has passed below. */}
+                <ol reversed className="mt-4 border-b border-line">
+                  {[...CALENDAR].reverse().map((item) => {
                     const tone = calendarTone(item.id, now);
                     const text = tone === "past" ? "text-muted" : "";
+                    const StatusIcon =
+                      tone === "now" ? CircleDot : tone === "past" ? Check : CalendarClock;
                     return (
                       <li
                         key={item.id}
@@ -1276,7 +1395,7 @@ export function Mesa() {
                         </span>
                         <div className="flex flex-col gap-1">
                           <span
-                            className={`inline-flex items-center gap-2 font-mono text-[10.5px] tracking-[0.08em] uppercase ${
+                            className={`inline-flex items-center gap-1.5 font-mono text-[10.5px] tracking-[0.08em] uppercase ${
                               tone === "now"
                                 ? "text-gold-ink"
                                 : tone === "past"
@@ -1284,15 +1403,10 @@ export function Mesa() {
                                   : "text-ink"
                             }`}
                           >
-                            <span
+                            <StatusIcon
+                              className="size-3.5 shrink-0"
+                              strokeWidth={2}
                               aria-hidden="true"
-                              className={`size-2 shrink-0 rounded-full border-[1.5px] ${
-                                tone === "now"
-                                  ? "border-gold bg-gold"
-                                  : tone === "past"
-                                    ? "border-muted"
-                                    : "border-ink"
-                              }`}
                             />
                             {tone === "now"
                               ? t({ en: "Now", es: "Ahora" }, lang)
@@ -1311,9 +1425,9 @@ export function Mesa() {
 
             <section className={`${WRAP} pt-8 pb-16`}>
               <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-t border-ink pt-6">
-                <h2 className={H2}>
+                <Heading icon={Users}>
                   {t({ en: "Who is standing", es: "Quién se presenta" }, lang)}
-                </h2>
+                </Heading>
                 <span className={`${LABEL} text-muted`}>
                   {t({ en: "29 November", es: "29 de noviembre" }, lang)}
                 </span>
@@ -1321,20 +1435,33 @@ export function Mesa() {
               <ul className="mt-6 grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-4">
                 {CANDIDATES.map((c) => {
                   const party = PARTIES[c.party];
+                  const base = c.photo.replace(/\.jpg$/, "");
                   return (
                     <li key={c.party}>
-                      <img
-                        src={c.photo}
-                        alt={c.name}
-                        width={480}
-                        height={480}
-                        loading="lazy"
-                        decoding="async"
-                        className="aspect-square w-full bg-raised object-cover"
-                      />
+                      <picture>
+                        <source
+                          type="image/webp"
+                          srcSet={`${base}-240.webp 240w, ${base}-320.webp 320w, ${base}-480.webp 480w`}
+                          sizes="(min-width: 1024px) 270px, 45vw"
+                        />
+                        <img
+                          src={c.photo}
+                          alt={c.name}
+                          width={480}
+                          height={480}
+                          loading="lazy"
+                          decoding="async"
+                          className="aspect-square w-full bg-raised object-cover"
+                        />
+                      </picture>
                       <div className="h-1" style={{ background: party.color }} />
                       <div className="flex flex-col gap-2 pt-4">
-                        <p className="flex flex-wrap items-baseline gap-x-2 text-[13px] leading-normal">
+                        <p className="flex flex-wrap items-center gap-x-2 text-[13px] leading-normal">
+                          <span
+                            aria-hidden="true"
+                            className="size-2.5 shrink-0 rounded-full"
+                            style={{ background: party.color }}
+                          />
                           <span className="font-bold">{party.short}</span>
                           <span className="text-muted">{t(party.name, lang)}</span>
                         </p>
@@ -1421,8 +1548,17 @@ export function Mesa() {
                   className={`${LINK} text-sm`}
                 >
                   {allNotesOpen
-                    ? t({ en: "Hide all notes", es: "Ocultar todas las notas" }, lang)
-                    : t({ en: "Show all notes", es: "Ver todas las notas" }, lang)}
+                    ? t(
+                        {
+                          en: "Hide all graphs and notes",
+                          es: "Ocultar todos los gráficos y notas",
+                        },
+                        lang,
+                      )
+                    : t(
+                        { en: "Show all graphs and notes", es: "Ver todos los gráficos y notas" },
+                        lang,
+                      )}
                 </button>
               </div>
               <PollTable polls={visible} lang={lang} open={openNotes} onToggle={toggleNote} />
@@ -1479,7 +1615,7 @@ export function Mesa() {
           </>
         )}
 
-        {tab === "blocs" && <BlocsView lang={lang} onPolls={() => choose("polls")} />}
+        {tab === "blocs" && <BlocsView lang={lang} />}
 
         {tab === "count" && (
           <>
@@ -1518,9 +1654,9 @@ export function Mesa() {
               <div className={`${WRAP} pt-10 pb-16`}>
                 <div className="flex flex-col items-start gap-3">
                   <Badge kind="official" lang={lang} />
-                  <h2 className={H2}>
+                  <Heading icon={Landmark}>
                     {t({ en: "23 July 2023", es: "23 de julio de 2023" }, lang)}
-                  </h2>
+                  </Heading>
                   <p className="max-w-[72ch] text-base leading-[1.6]">
                     {t(
                       {
@@ -1635,19 +1771,29 @@ export function Mesa() {
 
             <section className={`${WRAP} pb-12`}>
               <div className="grid gap-x-16 border-b border-line md:grid-cols-2">
-                {RULES.map((rule) => (
-                  <article key={rule.title.en} className="border-t border-ink py-6">
-                    <h2 className={H3}>{t(rule.title, lang)}</h2>
-                    <p className="mt-2 text-[15px] leading-[1.6]">{t(rule.body, lang)}</p>
-                  </article>
-                ))}
+                {RULES.map((rule, index) => {
+                  const Icon = RULE_ICONS[index] ?? Vote;
+                  return (
+                    <article key={rule.title.en} className="border-t border-ink py-6">
+                      <h2 className={`flex items-center gap-2.5 ${H3}`}>
+                        <Icon
+                          className="size-[22px] shrink-0 text-gold-ink"
+                          strokeWidth={1.75}
+                          aria-hidden="true"
+                        />
+                        {t(rule.title, lang)}
+                      </h2>
+                      <p className="mt-2 text-[15px] leading-[1.6]">{t(rule.body, lang)}</p>
+                    </article>
+                  );
+                })}
               </div>
             </section>
 
             <section className={`${WRAP} pb-16`}>
-              <h2 className={H2}>
+              <Heading icon={MapPin}>
                 {t({ en: "Largest constituencies", es: "Circunscripciones mayores" }, lang)}
-              </h2>
+              </Heading>
               <p className="mt-3 max-w-[70ch] text-[15px] leading-[1.6] text-muted">
                 {t(
                   {
@@ -1661,7 +1807,10 @@ export function Mesa() {
                 {PROVINCES.map((p) => (
                   <li key={p.name.en} className="border-l border-line py-5 pr-1 pl-2.5 md:pl-5">
                     <p className={`text-[40px] ${BIG}`}>{p.seats}</p>
-                    <p className={`mt-2.5 ${LABEL}`}>{t(p.name, lang)}</p>
+                    <p className={`mt-2.5 flex items-center gap-1.5 ${LABEL}`}>
+                      <MapPin className="size-3.5 shrink-0 text-muted" aria-hidden="true" />
+                      {t(p.name, lang)}
+                    </p>
                     {p.note && <p className="mt-1 text-xs text-gold-ink">{t(p.note, lang)}</p>}
                   </li>
                 ))}
@@ -1727,10 +1876,8 @@ export function Mesa() {
       </main>
 
       <footer className="border-t border-ink">
-        <div
-          className={`${WRAP} flex flex-wrap items-center justify-between gap-x-10 gap-y-5 pt-8 pb-28 lg:pb-14`}
-        >
-          <p className="max-w-[64ch] min-w-0 flex-[1_1_320px] text-[13px] leading-[1.6] text-muted">
+        <div className={`${WRAP} pt-8 pb-28 lg:pb-14`}>
+          <p className="max-w-[64ch] text-[13px] leading-[1.6] text-muted">
             {t(
               {
                 en: "Snapshot compiled the morning of 25 November 2026. The desk clock is live. The numbers are not, until Interior opens the count.",
@@ -1739,19 +1886,10 @@ export function Mesa() {
               lang,
             )}
           </p>
-          <button
-            type="button"
-            onClick={copyStatus}
-            className="h-12 rounded-[2px] bg-ink px-5 text-[15px] font-semibold text-inv"
-          >
-            {copied
-              ? t({ en: "Copied", es: "Copiado" }, lang)
-              : t({ en: "Copy a source-safe status", es: "Copiar un estado con fuentes" }, lang)}
-          </button>
         </div>
       </footer>
 
-      <Nav tab={tab} setTab={choose} lang={lang} variant="dock" />
+      <Nav tab={tab} lang={lang} variant="dock" />
     </div>
   );
 }
