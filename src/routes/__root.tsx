@@ -1,4 +1,12 @@
-import { createRootRoute, HeadContent, Link, Outlet, Scripts } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  HeadContent,
+  Link,
+  Outlet,
+  Scripts,
+  useLocation,
+} from "@tanstack/react-router";
+import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
@@ -43,6 +51,15 @@ async function resolveShareHost(): Promise<string> {
   } catch {
     return "";
   }
+}
+
+/**
+ * Vercel Web Analytics: cookieless page counts, one per section address.
+ * The path is passed in so a move between sections is counted as a page view.
+ */
+function DeskAnalytics() {
+  const path = useLocation({ select: (location) => location.pathname });
+  return <Analytics route={path} path={path} />;
 }
 
 export const Route = createRootRoute({
@@ -95,6 +112,7 @@ export const Route = createRootRoute({
         <AuthProvider>
           <Outlet />
         </AuthProvider>
+        <DeskAnalytics />
         <Scripts />
       </body>
     </html>
