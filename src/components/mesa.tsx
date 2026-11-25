@@ -883,16 +883,34 @@ export function Mesa() {
               </h2>
               <ul className="mt-3 grid gap-3 sm:grid-cols-2">
                 {CANDIDATES.map((c) => (
-                  <li key={c.party} className="rounded-card border border-line bg-paper p-4">
-                    <div className="flex items-center gap-2">
-                      <span className="size-3 rounded-full" style={{ background: PARTIES[c.party].color }} />
-                      <span className="text-sm font-semibold">{PARTIES[c.party].short}</span>
+                  <li key={c.party} className="flex items-center gap-3 rounded-card border border-line bg-paper p-4">
+                    <img
+                      src={c.photo}
+                      alt=""
+                      width={72}
+                      height={72}
+                      className="size-16 shrink-0 rounded-full object-cover sm:size-20"
+                    />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="size-3 rounded-full" style={{ background: PARTIES[c.party].color }} />
+                        <span className="text-sm font-semibold">{PARTIES[c.party].short}</span>
+                      </div>
+                      <p className="mt-1 font-display text-2xl leading-tight">{c.name}</p>
+                      <p className="text-sm text-muted">{t(c.role, lang)}</p>
                     </div>
-                    <p className="mt-1 font-display text-2xl leading-tight">{c.name}</p>
-                    <p className="text-sm text-muted">{t(c.role, lang)}</p>
                   </li>
                 ))}
               </ul>
+              <p className="mt-2 text-xs leading-relaxed text-muted">
+                {t(
+                  {
+                    en: "Portraits: European People’s Party (CC BY 2.0), Pool Moncloa, Vox España (CC0), Laura Guerrero / Barcelona City Council (CC BY 4.0), via Wikimedia Commons.",
+                    es: "Retratos: European People’s Party (CC BY 2.0), Pool Moncloa, Vox España (CC0), Laura Guerrero / Ayuntamiento de Barcelona (CC BY 4.0), vía Wikimedia Commons.",
+                  },
+                  lang,
+                )}
+              </p>
             </section>
 
             <section>

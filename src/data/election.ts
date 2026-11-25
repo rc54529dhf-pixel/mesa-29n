@@ -675,21 +675,24 @@ export const POLLS: Poll[] = [
   },
 ];
 
-export const CANDIDATES: { party: PartyId; name: string; role: Bi }[] = [
+export const CANDIDATES: { party: PartyId; name: string; role: Bi; photo: string }[] = [
   {
     party: "pp",
     name: "Alberto Núñez Feijóo",
     role: bi("PP candidate for prime minister", "Candidato del PP a la presidencia"),
+    photo: "/candidates/feijoo.jpg",
   },
   {
     party: "psoe",
     name: "Pedro Sánchez",
     role: bi("Prime minister and PSOE candidate", "Presidente del Gobierno y candidato del PSOE"),
+    photo: "/candidates/sanchez.jpg",
   },
   {
     party: "vox",
     name: "Santiago Abascal",
     role: bi("Vox candidate", "Candidato de Vox"),
+    photo: "/candidates/abascal.jpg",
   },
   {
     party: "fa",
@@ -698,6 +701,7 @@ export const CANDIDATES: { party: PartyId; name: string; role: Bi }[] = [
       "Frente Amplio candidate. Yolanda Díaz led Sumar in 2023 and is not heading this list.",
       "Candidata del Frente Amplio. Yolanda Díaz encabezó Sumar en 2023 y no encabeza esta lista.",
     ),
+    photo: "/candidates/colau.jpg",
   },
 ];
 
