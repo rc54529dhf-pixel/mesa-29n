@@ -878,35 +878,46 @@ export function Mesa() {
             )}
 
             <section>
-              <h2 className="font-display text-2xl">
-                {t({ en: "Who is standing", es: "Quién se presenta" }, lang)}
-              </h2>
-              <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-                {CANDIDATES.map((c) => (
-                  <li key={c.party} className="flex items-center gap-3 rounded-card border border-line bg-paper p-4">
-                    <img
-                      src={c.photo}
-                      alt=""
-                      width={72}
-                      height={72}
-                      className="size-16 shrink-0 rounded-full object-cover sm:size-20"
-                    />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="size-3 rounded-full" style={{ background: PARTIES[c.party].color }} />
-                        <span className="text-sm font-semibold">{PARTIES[c.party].short}</span>
-                      </div>
-                      <p className="mt-1 font-display text-2xl leading-tight">{c.name}</p>
-                      <p className="text-sm text-muted">{t(c.role, lang)}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <div className="overflow-hidden rounded-card bg-ink text-paper">
+                <div className="flex items-center justify-between gap-3 px-4 py-3">
+                  <p className="text-xs font-semibold tracking-widest text-paper/70">
+                    {t({ en: "29 November", es: "29 de noviembre" }, lang)}
+                  </p>
+                  <h2 className="text-xs font-semibold tracking-widest text-paper/80">
+                    {t({ en: "Who is standing", es: "Quién se presenta" }, lang)}
+                  </h2>
+                </div>
+                <ul className="grid grid-cols-2 gap-1 px-1 pb-1">
+                  {CANDIDATES.map((c) => {
+                    const party = PARTIES[c.party];
+                    return (
+                      <li key={c.party} className="bg-ink">
+                        <img
+                          src={c.photo}
+                          alt={c.name}
+                          width={480}
+                          height={480}
+                          className="aspect-square w-full object-cover"
+                        />
+                        <div className="h-2" style={{ background: party.color }} />
+                        <div className="px-3 py-3">
+                          <p className="font-display text-xl leading-none" style={{ color: party.color }}>
+                            {party.short}
+                          </p>
+                          <p className="mt-1 text-sm text-paper/70">{t(party.name, lang)}</p>
+                          <p className="mt-3 font-display text-2xl leading-tight">{c.name}</p>
+                          <p className="mt-1 text-sm leading-snug text-paper/70">{t(c.role, lang)}</p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
               <p className="mt-2 text-xs leading-relaxed text-muted">
                 {t(
                   {
-                    en: "Portraits: European People’s Party (CC BY 2.0), Pool Moncloa, Vox España (CC0), Laura Guerrero / Barcelona City Council (CC BY 4.0), via Wikimedia Commons.",
-                    es: "Retratos: European People’s Party (CC BY 2.0), Pool Moncloa, Vox España (CC0), Laura Guerrero / Ayuntamiento de Barcelona (CC BY 4.0), vía Wikimedia Commons.",
+                    en: "Portraits, in order: Alberto Núñez Feijóo (European People’s Party, CC BY 2.0), Pedro Sánchez (Pool Moncloa), Santiago Abascal (Vox España, CC0), Ada Colau (Laura Guerrero / Barcelona City Council, CC BY 4.0). Via Wikimedia Commons.",
+                    es: "Retratos, en este orden: Alberto Núñez Feijóo (European People’s Party, CC BY 2.0), Pedro Sánchez (Pool Moncloa), Santiago Abascal (Vox España, CC0), Ada Colau (Laura Guerrero / Ayuntamiento de Barcelona, CC BY 4.0). Vía Wikimedia Commons.",
                   },
                   lang,
                 )}
