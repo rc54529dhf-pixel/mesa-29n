@@ -1,15 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { TRANSLATION_MODEL, readTranslations, translationRequest } from "./translate.ts";
+import { TRANSLATION_MODELS, readTranslations, translationRequest } from "./translate.ts";
 
 describe("translationRequest", () => {
   it("numbers the headlines and sends them as data", () => {
-    const request = translationRequest(["Uno", 'Dos con "comillas"']) as {
+    const request = translationRequest(["Uno", 'Dos con "comillas"'], TRANSLATION_MODELS[0]) as {
       model: string;
       temperature: number;
       messages: { role: string; content: string }[];
     };
-    assert.equal(request.model, TRANSLATION_MODEL);
+    assert.equal(request.model, TRANSLATION_MODELS[0]);
     assert.equal(request.temperature, 0);
     assert.equal(request.messages[0].role, "system");
     assert.deepEqual(JSON.parse(request.messages[1].content), [

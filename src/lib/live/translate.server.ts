@@ -1,8 +1,8 @@
 import type { LiveItem, LiveTranslation } from "./feeds";
-import { readTranslations, translationRequest } from "./translate";
+import { TRANSLATION_MODELS, readTranslations, translationRequest } from "./translate";
 
 const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
-const CALL_TIMEOUT_MS = 9000;
+const CALL_TIMEOUT_MS = 12_000;
 /** New headlines translated per round; the rest wait for the next one. */
 const BATCH = 40;
 /** After a failed call, wait this long before trying again. */
@@ -74,14 +74,13 @@ async function refusal(response: Response): Promise<string> {
   }
 }
 
-async function ask(
-  titles: string[],
-  token: string,
-): Promise<{ english: (string | null)[]; ok: boolean; status: number; reason: string }> {
+type Answer = { english: (string | null)[]; ok: boolean; status: number; reason: string };
+
+async function askModel(titles: string[], token: string, model: string): Promise<Answer> {
   const response = await fetch(GATEWAY, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-    body: JSON.stringify(translationRequest(titles)),
+    body: JSON.stringify(translationRequest(titles, model)),
     signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
   });
   if (!response.ok) {
@@ -99,6 +98,30 @@ async function ask(
     status: response.status,
     reason: "",
   };
+}
+
+/** Asks the first model; if it refuses, fails or returns nothing usable, asks the next. */
+async function ask(titles: string[], token: string): Promise<Answer> {
+  let last: Answer = {
+    english: titles.map(() => null),
+    ok: false,
+    status: 0,
+    reason: "no model answered",
+  };
+  for (const model of TRANSLATION_MODELS) {
+    try {
+      last = await askModel(titles, token, model);
+    } catch {
+      last = {
+        english: titles.map(() => null),
+        ok: false,
+        status: 0,
+        reason: `${model} did not answer in time`,
+      };
+    }
+    if (last.english.some(Boolean)) return last;
+  }
+  return last;
 }
 
 /**
