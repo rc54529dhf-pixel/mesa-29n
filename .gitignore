@@ -1,0 +1,11 @@
+node_modules
+.vercel
+screenshots
+dist
+.output
+.nitro
+.grok/*
+!.grok/app-env.json
+*.log
+.cache
+coverage
