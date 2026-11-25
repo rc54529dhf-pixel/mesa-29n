@@ -954,20 +954,26 @@ export function Mesa() {
                 )}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {FILTERS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-pressed={filter === item.id}
-                  onClick={() => setFilter(item.id)}
-                  className={`min-h-11 rounded-full border px-4 text-sm font-semibold ${
-                    filter === item.id ? "border-ink bg-ink text-paper" : "border-line"
-                  }`}
-                >
-                  {t(item.label, lang)}
-                </button>
-              ))}
+            <div
+              className="rounded-card bg-ink p-1"
+              role="group"
+              aria-label={t({ en: "Which polls to show", es: "Qué sondeos mostrar" }, lang)}
+            >
+              <div className="grid grid-cols-4 gap-1">
+                {FILTERS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-pressed={filter === item.id}
+                    onClick={() => setFilter(item.id)}
+                    className={`min-h-11 rounded-card px-1 text-sm font-semibold ${
+                      filter === item.id ? "bg-paper text-ink" : "text-paper/80"
+                    }`}
+                  >
+                    {t(item.label, lang)}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="grid gap-3 lg:grid-cols-2">
               {visible.map((poll) => (
