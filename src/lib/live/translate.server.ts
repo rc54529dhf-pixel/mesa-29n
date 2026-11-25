@@ -62,21 +62,42 @@ async function remember(cache: RuntimeCache | null, titles: string[]): Promise<v
   }
 }
 
+/** The gateway's own words for a refusal, shortened; it says what to fix (credit, model access). */
+async function refusal(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { error?: { message?: unknown; type?: unknown } };
+    const message = typeof body.error?.message === "string" ? body.error.message : "";
+    const type = typeof body.error?.type === "string" ? body.error.type : "";
+    return `${type} ${message}`.replace(/\s+/g, " ").trim().slice(0, 220);
+  } catch {
+    return "";
+  }
+}
+
 async function ask(
   titles: string[],
   token: string,
-): Promise<{ english: (string | null)[]; status: number }> {
+): Promise<{ english: (string | null)[]; ok: boolean; status: number; reason: string }> {
   const response = await fetch(GATEWAY, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify(translationRequest(titles)),
     signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
   });
-  if (!response.ok) return { english: titles.map(() => null), status: response.status };
+  if (!response.ok) {
+    return {
+      english: titles.map(() => null),
+      ok: false,
+      status: response.status,
+      reason: await refusal(response),
+    };
+  }
   const body = (await response.json()) as { choices?: { message?: { content?: unknown } }[] };
   return {
     english: readTranslations(body.choices?.[0]?.message?.content, titles.length),
+    ok: true,
     status: response.status,
+    reason: "",
   };
 }
 
@@ -100,13 +121,14 @@ export async function addEnglish(
     .slice(0, BATCH);
   if (missing.length > 0 && token && Date.now() - lastFailureAt > RETRY_AFTER_MS) {
     try {
-      const { english, status } = await ask(missing, token);
+      const { english, ok, status, reason } = await ask(missing, token);
       let added = 0;
       english.forEach((en, index) => {
         if (en) {
           known.set(missing[index], en);
           added += 1;
-        } else {
+        } else if (ok) {
+          // The model answered but gave nothing usable for this headline.
           failed.set(missing[index], (failed.get(missing[index]) ?? 0) + 1);
         }
       });
@@ -114,7 +136,7 @@ export async function addEnglish(
         await remember(cache, titles);
       } else {
         lastFailureAt = Date.now();
-        note = `gateway ${status}`;
+        note = `gateway ${status}${reason ? `: ${reason}` : ""}`;
       }
     } catch {
       lastFailureAt = Date.now();
