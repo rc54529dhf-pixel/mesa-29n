@@ -230,19 +230,49 @@ export function parseFeed(xml: string): RawEntry[] {
   return entries;
 }
 
-function fold(text: string): string {
-  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+function stripAccents(text: string): string {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-/**
- * Election vocabulary, matched on text with accents removed. Deliberately about the
- * vote itself, not about parties or leaders, so ordinary political news stays out.
- */
-const ELECTION_TERMS =
-  /\b(eleccion(es)?|comicios|las generales|(pre|post)?electoral(es)?|elector(es|ado)?|29[\s-]?n|escrutinio|recuento|campana|urnas?|vot(o|os|a|an|e|en|ar|aron|ara|aran|acion|aciones|antes?)|sondeos?|encuestas?|candidat[oa]s?|candidaturas?|investidura|papeletas?|escanos?|mayoria absoluta|jornada de reflexion|mitin(es)?|participacion (a las|hasta las|sube|baja|cae|crece|alcanza|se situa|es del|del \d)|cara a cara|debate (electoral|a (dos|tres|cuatro|cinco|seis|siete)))\b/;
+function fold(text: string): string {
+  return stripAccents(text).toLowerCase();
+}
 
-export function isElectionItem(title: string, context: string): boolean {
-  return ELECTION_TERMS.test(fold(`${title} ${context}`));
+/* All patterns below are matched on text with the accents removed. */
+
+/** Words that only mean the election. Enough on their own, in the headline or the feed's summary. */
+const STRONG =
+  /\b(eleccion(es)?|comicios|(pre|post)?electoral(es)?|elector(es|ado)?|29[\s-]?n|urnas?)\b/;
+
+/** Voting words. In a headline about a decree or a plenary they mean a vote in parliament, so they do not count there. */
+const VOTE = /\b(vot(o|os|a|an|e|en|ar|aron|ara|aran|acion|aciones|antes?)|papeletas?)\b/;
+const PARLIAMENT =
+  /\b(decretos?|ley(es)?|pleno|mocion(es)?|presupuestos?|enmiendas?|convalida\w*|diputacion permanente|congreso|senado)\b/;
+
+/** Other campaign and count vocabulary, headline only. */
+const CAMPAIGN =
+  /\b(las generales|(?<!\b(su|bajo|eludir) )escrutinio(?! (publico|judicial|parlamentario|de bruselas|de la ue))|recuento|campana|sondeos?|encuestas?|candidat[oa]s?|candidaturas?|investidura|escanos?|mayoria absoluta|jornada de reflexion|mitin(es)?|participacion (a las|hasta las|sube|baja|cae|crece|alcanza|se situa|es del|del \d)|cara a cara|debate (electoral|a (dos|tres|cuatro|cinco|seis|siete)))\b/;
+
+/** The candidates and parties on the desk, as written in a headline. Case matters: "Podemos" the party, not "podemos". */
+const NAMES =
+  /\b(Sanchez|Feijoo|Abascal|Colau|PSOE|PP|Vox|VOX|Frente Amplio|Podemos|Junts|ERC|Bildu|PNV|BNG)\b/;
+
+/** The outlet filed the article under its own election section. */
+const ELECTION_PATH = /\/elecciones[-/]/;
+
+/**
+ * Whether a feed item belongs on the Live page: it uses election vocabulary,
+ * names a candidate or party in the headline, or the outlet filed it under its
+ * election section.
+ */
+export function isElectionItem(title: string, context: string, url = ""): boolean {
+  const plain = stripAccents(title);
+  const folded = plain.toLowerCase();
+  if (STRONG.test(folded) || CAMPAIGN.test(folded)) return true;
+  if (VOTE.test(folded) && !PARLIAMENT.test(folded)) return true;
+  if (ELECTION_PATH.test(url)) return true;
+  if (NAMES.test(plain)) return true;
+  return STRONG.test(fold(context));
 }
 
 function ownLink(link: string, domain: string): string | null {
@@ -276,7 +306,7 @@ export function toItems(outlet: LiveOutlet, entries: RawEntry[], now: number): L
     if (at > now + FUTURE_SLACK_MS || now - at > MAX_AGE_MS) continue;
     const url = ownLink(entry.link, outlet.domain);
     if (!url) continue;
-    if (!isElectionItem(entry.title, entry.context)) continue;
+    if (!isElectionItem(entry.title, entry.context, url)) continue;
     const title =
       entry.title.length > 240 ? `${entry.title.slice(0, 237).trimEnd()}…` : entry.title;
     const key = url.split("?")[0];

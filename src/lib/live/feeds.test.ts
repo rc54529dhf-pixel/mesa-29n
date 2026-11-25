@@ -104,27 +104,54 @@ describe("isElectionItem", () => {
     for (const title of [
       "Arranca la jornada de reflexión",
       "Así será el ESCRUTINIO del domingo",
+      "Escrutinio al 50%: empate técnico",
       "Récord de voto por correo",
       "El 29N, en cinco claves",
       "La participación a las 14.00 es del 40,5%",
-      "Feijóo y Sánchez cierran campaña en Madrid",
+      "Los líderes cierran campaña en Madrid",
       "Los comicios del domingo, en cifras",
     ]) {
       assert.equal(isElectionItem(title, ""), true, title);
     }
   });
-  it("leaves ordinary political news out", () => {
+  it("keeps headlines that name a candidate or a party", () => {
+    for (const title of [
+      "Sánchez intenta asustar a las mujeres con una pérdida de derechos",
+      "Feijóo promete bajar impuestos",
+      "El PP acude al Parador de Teruel",
+      "El Frente Amplio presenta su programa",
+    ]) {
+      assert.equal(isElectionItem(title, ""), true, title);
+    }
+  });
+  it("leaves ordinary news out", () => {
     for (const title of [
       "El Supremo cita a declarar a un exministro",
       "Su participación en la trama, bajo la lupa",
       "El Gobierno aprueba el decreto de vivienda",
       "Un devoto de la tortilla abre restaurante",
+      "El Congreso se prepara para votar los últimos cinco decretos del Gobierno",
+      "Un directivo avisó a Bruselas de una triquiñuela para eludir su escrutinio",
+      "Los vecinos: no podemos seguir así",
+      "Ayuso ultima una subida de hasta 400 euros para los profesores",
     ]) {
       assert.equal(isElectionItem(title, ""), false, title);
     }
   });
-  it("also reads the feed's categories and summary", () => {
+  it("trusts the outlet's own election section and strong words in the summary", () => {
+    assert.equal(
+      isElectionItem(
+        "Del Constitucional a las oposiciones a jueces",
+        "",
+        "https://elpais.com/espana/elecciones-generales/2026-11-25/x.html",
+      ),
+      true,
+    );
     assert.equal(isElectionItem("Cinco claves del domingo", "Elecciones Generales · España"), true);
+    assert.equal(
+      isElectionItem("Cinco claves del domingo", "Su voto en el pleno fue decisivo"),
+      false,
+    );
   });
 });
 
