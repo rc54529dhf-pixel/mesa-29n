@@ -18,40 +18,44 @@ export const Route = createFileRoute("/api/live")({
           process.env.AI_GATEWAY_API_KEY ??
           process.env.VERCEL_OIDC_TOKEN ??
           undefined;
-        // TEMPORARY PROBE (preview branch only, removed before release): which cheap
-        // models does this team's AI Gateway tier allow?
+        // TEMPORARY PROBE (preview branch only, removed before release): compare
+        // candidate models on real headlines.
         if (new URL(request.url).searchParams.get("view") === "models" && aiToken) {
+          const { translationRequest, readTranslations } = await import("@/lib/live/translate");
+          const current = await loadLive(aiToken);
+          const titles = current.items.slice(0, 40).map((item) => item.title);
           const auth = { authorization: `Bearer ${aiToken}`, "content-type": "application/json" };
-          const list = (await (await fetch("https://ai-gateway.vercel.sh/v1/models", { headers: auth })).json()) as {
-            data?: { id: string; type?: string; pricing?: { input?: string; output?: string } }[];
-          };
-          const family =
-            /(gemini.*flash|gpt-.*(nano|mini)|haiku|mistral.*(small|medium)|llama|deepseek|grok.*fast|qwen|nova-(micro|lite)|gemma|glm|kimi|minimax)/i;
-          const cheap = (list.data ?? [])
-            .filter((m) => (m.type ?? "language") === "language" && family.test(m.id))
-            .filter((m) => Number(m.pricing?.input ?? "1") <= 0.0000006)
-            .slice(0, 45);
           const rows = await Promise.all(
-            cheap.map(async (m) => {
+            ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite", "amazon/nova-lite"].map(async (model) => {
+              const started = Date.now();
               try {
                 const r = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
                   method: "POST",
                   headers: auth,
-                  body: JSON.stringify({ model: m.id, max_tokens: 8, messages: [{ role: "user", content: "Reply with OK" }] }),
-                  signal: AbortSignal.timeout(12000),
+                  body: JSON.stringify({ ...translationRequest(titles), model, reasoning: { enabled: false } }),
+                  signal: AbortSignal.timeout(25000),
                 });
-                let why = "";
-                if (!r.ok) {
-                  const b = (await r.json().catch(() => ({}))) as { error?: { message?: string } };
-                  why = (b.error?.message ?? "").slice(0, 40);
-                }
-                return `${r.status} ${m.id} in=${m.pricing?.input} out=${m.pricing?.output} ${why}`;
+                const body = (await r.json()) as {
+                  choices?: { message?: { content?: unknown } }[];
+                  usage?: unknown;
+                  error?: { message?: string };
+                };
+                const en = readTranslations(body.choices?.[0]?.message?.content, titles.length);
+                return {
+                  model,
+                  status: r.status,
+                  ms: Date.now() - started,
+                  usage: body.usage,
+                  error: body.error?.message?.slice(0, 120),
+                  got: en.filter(Boolean).length,
+                  sample: en.slice(0, 12),
+                };
               } catch (e) {
-                return `ERR ${m.id} ${String(e).slice(0, 40)}`;
+                return { model, status: 0, ms: Date.now() - started, error: String(e).slice(0, 80) };
               }
             }),
           );
-          return new Response(JSON.stringify({ total: list.data?.length ?? 0, tried: rows.length, rows: rows.sort() }, null, 1), {
+          return new Response(JSON.stringify({ es: titles.slice(0, 12), rows }, null, 1), {
             headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
           });
         }
