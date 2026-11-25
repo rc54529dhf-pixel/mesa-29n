@@ -1,19 +1,17 @@
 @import "tailwindcss";
 
 @theme {
-  --color-canvas: #e8edf3;
-  --color-paper: #ffffff;
-  --color-paper-2: #e4e9f0;
-  --color-ink: #12161e;
-  --color-muted: #5c6775;
-  --color-line: #d5dce6;
-  --color-crimson: #e11d48;
-  --color-on-crimson: #ffffff;
-  --color-brass: #1d4e89;
-  --color-brass-soft: #e7f0fa;
-  --color-left: #e11d48;
-  --color-center: #c47b12;
-  --color-right: #2563eb;
+  /* Interface: ink, paper and one gold accent. Hue is reserved for parties. */
+  --color-paper: #f7f6f2;
+  --color-raised: #eeece4;
+  --color-ink: #101b2d;
+  --color-muted: #55606f;
+  --color-line: #d9d6cc;
+  --color-gold: #b08a2e;
+  --color-gold-ink: #7a5a12;
+  --color-inv: #f7f6f2;
+  --color-bar: #101b2d;
+  --color-bar-ink: #f7f6f2;
   --color-pp: #2563eb;
   --color-psoe: #e11d48;
   --color-vox: #3d8b32;
@@ -32,18 +30,40 @@
   --color-fv: #e08a22;
   --color-aa: #a35242;
   --color-other: #8b93a0;
-  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
-  --radius-card: 1.15rem;
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @layer base {
+  /* Wing colours live outside @theme: as theme colours they would also turn
+     text-left, text-center and text-right into colour utilities. */
+  :root {
+    --color-left: #e11d48;
+    --color-center: #c47b12;
+    --color-right: #2563eb;
+  }
   html {
-    background: var(--color-canvas);
+    background: var(--color-paper);
     color: var(--color-ink);
+    color-scheme: light;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+  /* Night edition: same design, dark palette. Party colours stay as they are. */
+  html[data-edition="night"] {
+    color-scheme: dark;
+    --color-paper: #0b1320;
+    --color-raised: #131e31;
+    --color-ink: #efeae0;
+    --color-muted: #a3aec0;
+    --color-line: #27354d;
+    --color-gold: #d9b45a;
+    --color-gold-ink: #d9b45a;
+    --color-inv: #0b1320;
+    --color-bar: #060b14;
+    --color-bar-ink: #efeae0;
   }
   body {
     margin: 0;
@@ -62,11 +82,11 @@
     cursor: pointer;
   }
   :focus-visible {
-    outline: 2px solid var(--color-crimson);
+    outline: 2px solid var(--color-gold-ink);
     outline-offset: 2px;
   }
 }
 
 .dock {
-  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
 }

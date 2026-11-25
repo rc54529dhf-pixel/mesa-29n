@@ -5,6 +5,13 @@ import appCss from "../styles.css?url";
 
 const APP_NAME = "Mesa 29N";
 
+/**
+ * Sets the edition before first paint so a night-edition reader never sees a light flash.
+ * A saved choice wins; otherwise the device setting decides.
+ */
+const EDITION_BOOT =
+  'try{var e=localStorage.getItem("mesa-edition");if(e!=="day"&&e!=="night"){e=matchMedia("(prefers-color-scheme: dark)").matches?"night":"day"}document.documentElement.dataset.edition=e}catch(_){}';
+
 /** Same host guard the share injector uses for og:image. */
 function publicShareHost(hostHeader: string): string {
   const host = hostHeader.split(",")[0]?.trim().split(":")[0]?.toLowerCase() ?? "";
@@ -47,7 +54,7 @@ export const Route = createRootRoute({
         content:
           "Live desk for Spain’s 29 November 2026 general election. Official rules and the last count, media polls, and models — each one labeled.",
       },
-      { name: "theme-color", content: "#e8edf3" },
+      { name: "theme-color", content: "#f7f6f2" },
     ];
     if (host) {
       const xBanner = `https://${host}/x-banner.jpg`;
@@ -61,7 +68,7 @@ export const Route = createRootRoute({
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@500;600;700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap",
       },
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/__grok/manifest.webmanifest" },
@@ -72,6 +79,7 @@ export const Route = createRootRoute({
   component: () => (
     <html lang="en" className="antialiased" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: EDITION_BOOT }} />
         <HeadContent />
       </head>
       <body>

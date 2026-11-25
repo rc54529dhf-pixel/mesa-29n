@@ -354,6 +354,8 @@ export type Poll = {
   sample: Bi | null;
   shares: { party: PartyId; pct: number }[];
   seats: { party: PartyId; low: number; high: number }[];
+  /** PP + Vox seats when the release printed the pair but not the split. */
+  pair?: number;
   extra: Bi;
   sourceId: string;
 };
@@ -493,6 +495,7 @@ export const POLLS: Poll[] = [
     sample: bi("1,500 interviews", "1.500 entrevistas"),
     shares: [],
     seats: [{ party: "psoe", low: 110, high: 110 }],
+    pair: 195,
     extra: bi(
       "Reuters: PP and Vox together on 195 seats, PSOE on 110. The split between PP and Vox was not printed.",
       "Reuters: PP y Vox juntos en 195 escaños, PSOE en 110. No se publicó el reparto entre PP y Vox.",
