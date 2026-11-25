@@ -10,33 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as Char123SectionChar125RouteImport } from './routes/{-$section}'
+import { Route as ApiLiveRouteImport } from './routes/api/live'
 
 const Char123SectionChar125Route = Char123SectionChar125RouteImport.update({
   id: '/{-$section}',
   path: '/{-$section}',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLiveRoute = ApiLiveRouteImport.update({
+  id: '/api/live',
+  path: '/api/live',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/{-$section}': typeof Char123SectionChar125Route
+  '/api/live': typeof ApiLiveRoute
 }
 export interface FileRoutesByTo {
   '/{-$section}': typeof Char123SectionChar125Route
+  '/api/live': typeof ApiLiveRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/{-$section}': typeof Char123SectionChar125Route
+  '/api/live': typeof ApiLiveRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/{-$section}'
+  fullPaths: '/{-$section}' | '/api/live'
   fileRoutesByTo: FileRoutesByTo
-  to: '/{-$section}'
-  id: '__root__' | '/{-$section}'
+  to: '/{-$section}' | '/api/live'
+  id: '__root__' | '/{-$section}' | '/api/live'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   Char123SectionChar125Route: typeof Char123SectionChar125Route
+  ApiLiveRoute: typeof ApiLiveRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char123SectionChar125RouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/live': {
+      id: '/api/live'
+      path: '/api/live'
+      fullPath: '/api/live'
+      preLoaderRoute: typeof ApiLiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   Char123SectionChar125Route: Char123SectionChar125Route,
+  ApiLiveRoute: ApiLiveRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

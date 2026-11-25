@@ -22,6 +22,7 @@ import {
   MapPin,
   Moon,
   Newspaper,
+  Radio,
   Scale,
   Sun,
   Timer,
@@ -64,6 +65,9 @@ import {
   type Poll,
   type WingId,
 } from "@/data/election";
+import { LIVE_PINNED } from "@/data/live";
+import type { LiveItem } from "@/lib/live/feeds";
+import { useLiveFeed, type LiveFeed } from "@/lib/live/use-live-feed";
 import type { Tab } from "@/lib/sections";
 
 type Filter = "all" | Kind;
@@ -71,6 +75,7 @@ type Edition = "day" | "night";
 
 const TABS: { id: Tab; icon: LucideIcon; label: Bi }[] = [
   { id: "now", icon: Clock, label: { en: "Now", es: "Ahora" } },
+  { id: "live", icon: Radio, label: { en: "Live", es: "Directo" } },
   { id: "polls", icon: BarChart3, label: { en: "Polls", es: "Sondeos" } },
   { id: "blocs", icon: Columns3, label: { en: "Blocs", es: "Bloques" } },
   { id: "count", icon: Landmark, label: { en: "Count", es: "Recuento" } },
@@ -307,16 +312,31 @@ function SpainFlag() {
   );
 }
 
-function Badge({ kind, lang }: { kind: Kind | "official" | "law"; lang: Lang }) {
+function Badge({
+  kind,
+  lang,
+}: {
+  kind: Kind | "official" | "law" | "state" | "press";
+  lang: Lang;
+}) {
   const label =
     kind === "official"
       ? t({ en: "Official · count", es: "Oficial · recuento" }, lang)
       : kind === "law"
         ? t({ en: "Official · law", es: "Oficial · norma" }, lang)
-        : t(KIND_LABEL[kind], lang);
-  const tone = kind === "media" ? "text-ink" : kind === "model" ? "text-muted" : "text-gold-ink";
+        : kind === "state"
+          ? t({ en: "Official", es: "Oficial" }, lang)
+          : kind === "press"
+            ? t({ en: "Media", es: "Medios" }, lang)
+            : t(KIND_LABEL[kind], lang);
+  const tone =
+    kind === "media" || kind === "press"
+      ? "text-ink"
+      : kind === "model"
+        ? "text-muted"
+        : "text-gold-ink";
   const Icon =
-    kind === "media"
+    kind === "media" || kind === "press"
       ? Newspaper
       : kind === "model"
         ? Calculator
@@ -410,7 +430,7 @@ function SourceLink({ poll }: { poll: Poll }) {
   );
 }
 
-/** Phone and tablet: one poll per block, everything visible. */
+/** Phone, tablet and small laptop: one poll per block, everything visible. */
 function PollCard({ poll, lang }: { poll: Poll; lang: Lang }) {
   const names = pollNames(poll, lang);
   const Icon = names.icon;
@@ -455,7 +475,7 @@ function Cell({ value }: { value: string }) {
   return <span className={`${NUM} ${value === "—" ? "text-muted" : ""}`}>{value}</span>;
 }
 
-/** Desktop: every release on one comparable grid, each with its graph and note. */
+/** Wide screens: every release on one comparable grid, each with its graph and note. */
 function PollTable({
   polls,
   lang,
@@ -1007,6 +1027,291 @@ function SpreadChart({ lang }: { lang: Lang }) {
   );
 }
 
+/* Live page: every time is shown in Madrid time, whatever the reader's own clock says. */
+const MADRID = "Europe/Madrid";
+const DAY_KEY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: MADRID,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const CLOCK = new Intl.DateTimeFormat("en-GB", {
+  timeZone: MADRID,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+const DAY_LABEL: Record<Lang, Intl.DateTimeFormat> = {
+  en: new Intl.DateTimeFormat("en-GB", {
+    timeZone: MADRID,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }),
+  es: new Intl.DateTimeFormat("es-ES", {
+    timeZone: MADRID,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }),
+};
+
+const LIVE_FIRST_PAGE = 30;
+
+function ago(at: number, now: number, lang: Lang): string | null {
+  const minutes = Math.floor((now - at) / 60_000);
+  if (minutes < 0 || minutes >= 60) return null;
+  if (minutes < 1) return t({ en: "just now", es: "ahora mismo" }, lang);
+  return t({ en: `${minutes} min ago`, es: `hace ${minutes} min` }, lang);
+}
+
+type DayGroup = { key: string; label: string; items: LiveItem[] };
+
+function groupByDay(items: LiveItem[], now: number, lang: Lang): DayGroup[] {
+  const today = DAY_KEY.format(now);
+  const yesterday = DAY_KEY.format(now - 86_400_000);
+  const groups: DayGroup[] = [];
+  for (const item of items) {
+    const key = DAY_KEY.format(item.at);
+    let group = groups[groups.length - 1];
+    if (!group || group.key !== key) {
+      const date = DAY_LABEL[lang].format(item.at);
+      const label =
+        key === today
+          ? `${t({ en: "Today", es: "Hoy" }, lang)} · ${date}`
+          : key === yesterday
+            ? `${t({ en: "Yesterday", es: "Ayer" }, lang)} · ${date}`
+            : date;
+      group = { key, label, items: [] };
+      groups.push(group);
+    }
+    group.items.push(item);
+  }
+  return groups;
+}
+
+/** One line on the first page: the newest headline, linking to the Live page. */
+function LatestStrip({ feed, lang }: { feed: LiveFeed; lang: Lang }) {
+  const item = feed.data?.items[0];
+  return (
+    <div className="border-b border-line">
+      <SectionLink to="live" className={`${WRAP} flex h-11 items-center gap-3 text-sm`}>
+        <span className={`inline-flex shrink-0 items-center gap-2 ${LABEL} text-gold-ink`}>
+          <Radio className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+          {t({ en: "Latest", es: "Última hora" }, lang)}
+        </span>
+        <span className="min-w-0 flex-1 truncate font-medium">
+          {item
+            ? item.title
+            : t(
+                {
+                  en: "Election headlines from Spanish media",
+                  es: "Titulares electorales de medios españoles",
+                },
+                lang,
+              )}
+        </span>
+        {item && (
+          <span className="hidden shrink-0 font-mono text-xs text-muted tabular-nums sm:inline">
+            {item.outlet} · {CLOCK.format(item.at)}
+          </span>
+        )}
+        <ArrowRight className="size-4 shrink-0" aria-hidden="true" />
+      </SectionLink>
+    </div>
+  );
+}
+
+function LiveView({
+  feed,
+  lang,
+  now,
+  kicker,
+}: {
+  feed: LiveFeed;
+  lang: Lang;
+  now: number;
+  kicker: ReactNode;
+}) {
+  const [limit, setLimit] = useState(LIVE_FIRST_PAGE);
+  const items = feed.data?.items;
+  const sources = feed.data?.sources ?? [];
+  const groups = groupByDay((items ?? []).slice(0, limit), now, lang);
+  const total = items?.length ?? 0;
+  const anyAnswered = sources.some((source) => source.ok);
+
+  return (
+    <>
+      <section
+        className={`${WRAP} flex flex-wrap items-start gap-x-16 gap-y-10 pt-8 pb-12 md:pt-14`}
+      >
+        <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-5">
+          {kicker}
+          <h1 className={H1}>
+            {t({ en: "Latest election headlines", es: "Últimos titulares electorales" }, lang)}
+          </h1>
+          <p className="max-w-[64ch] text-base leading-[1.6] text-muted">
+            {t(
+              {
+                en: "Election headlines from Spanish media, newest first. Each one links to the outlet’s own article. They are picked automatically by keyword. The desk does not write or check them. Times are Madrid time.",
+                es: "Titulares electorales de medios españoles, del más reciente al más antiguo. Cada uno enlaza al artículo del propio medio. Se seleccionan automáticamente por palabras clave. La mesa no los redacta ni los comprueba. Las horas son de Madrid.",
+              },
+              lang,
+            )}
+          </p>
+        </div>
+
+        <aside className="flex min-w-0 flex-[1_1_380px] flex-col gap-4 border-t-[3px] border-ink bg-raised px-6 pt-6 pb-6">
+          <Badge kind="state" lang={lang} />
+          <h2 className="text-[26px] leading-[1.15] font-semibold tracking-[-0.025em]">
+            {t({ en: "Official sources", es: "Fuentes oficiales" }, lang)}
+          </h2>
+          <ul className="flex flex-col">
+            {LIVE_PINNED.map((pin) => (
+              <li
+                key={pin.id}
+                className="flex flex-col items-start gap-1 border-t border-line pt-3.5 pb-2 first:border-t-0 first:pt-0"
+              >
+                <h3 className="text-[15.5px] font-semibold">{t(pin.title, lang)}</h3>
+                <p className="text-[14.5px] leading-[1.6]">{t(pin.text, lang)}</p>
+                <a
+                  className={`${LINK} text-sm`}
+                  href={pin.link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t(pin.link.label, lang)}
+                  <ExternalLink className="size-3.5" aria-hidden="true" />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      </section>
+
+      <section className="border-t border-ink">
+        <div className={`${WRAP} pt-10 pb-16`}>
+          <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
+            <div className="flex flex-col items-start gap-3">
+              <Badge kind="press" lang={lang} />
+              <Heading icon={Radio}>
+                {t({ en: "Media headlines", es: "Titulares de medios" }, lang)}
+              </Heading>
+            </div>
+            {feed.data && (
+              <p className={`${LABEL} text-muted`}>
+                {t(
+                  {
+                    en: `Updated ${CLOCK.format(feed.data.fetchedAt)} · checked again every two minutes`,
+                    es: `Actualizado a las ${CLOCK.format(feed.data.fetchedAt)} · se comprueba cada dos minutos`,
+                  },
+                  lang,
+                )}
+              </p>
+            )}
+          </div>
+
+          {feed.status === "loading" && (
+            <p className="mt-6 border-t border-ink pt-5 text-[15px] text-muted" role="status">
+              {t({ en: "Loading headlines…", es: "Cargando titulares…" }, lang)}
+            </p>
+          )}
+
+          {feed.status !== "loading" && total === 0 && (
+            <p
+              className="mt-6 max-w-[64ch] border-t border-ink pt-5 text-[15px] leading-[1.6]"
+              role="status"
+            >
+              {anyAnswered
+                ? t(
+                    {
+                      en: "No election headlines in the outlets’ feeds right now. The desk checks again every two minutes.",
+                      es: "Ahora mismo no hay titulares electorales en los canales de los medios. La mesa vuelve a comprobarlo cada dos minutos.",
+                    },
+                    lang,
+                  )
+                : t(
+                    {
+                      en: "The outlets’ feeds could not be reached right now. The desk checks again every two minutes.",
+                      es: "Ahora mismo no se ha podido acceder a los canales de los medios. La mesa vuelve a comprobarlo cada dos minutos.",
+                    },
+                    lang,
+                  )}
+            </p>
+          )}
+
+          {groups.map((group) => (
+            <div key={group.key}>
+              <h3 className={`mt-8 border-b border-ink pb-2.5 ${LABEL}`}>{group.label}</h3>
+              <ol>
+                {group.items.map((item) => {
+                  const recent = ago(item.at, now, lang);
+                  return (
+                    <li
+                      key={item.id}
+                      className="grid grid-cols-[52px_minmax(0,1fr)] gap-x-4 border-b border-line py-4 sm:grid-cols-[84px_minmax(0,1fr)]"
+                    >
+                      <span className="pt-[3px] font-mono text-[13px] tabular-nums">
+                        {CLOCK.format(item.at)}
+                      </span>
+                      <div className="flex min-w-0 flex-col items-start gap-1.5">
+                        <a
+                          className="max-w-[68ch] text-[17px] leading-[1.35] font-semibold tracking-[-0.01em] underline-offset-4 hover:underline"
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {item.title}
+                        </a>
+                        <span
+                          className={`inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 ${LABEL} text-muted`}
+                        >
+                          <Newspaper
+                            className="size-3.5 shrink-0"
+                            strokeWidth={2}
+                            aria-hidden="true"
+                          />
+                          {item.outlet}
+                          {recent && <span className="text-gold-ink">· {recent}</span>}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          ))}
+
+          {total > limit && (
+            <button
+              type="button"
+              onClick={() => setLimit(total)}
+              className={`${LINK} mt-5 text-[15px]`}
+            >
+              {t({ en: "Show more headlines", es: "Ver más titulares" }, lang)}
+              <ChevronDown className="size-4" aria-hidden="true" />
+            </button>
+          )}
+
+          {sources.length > 0 && (
+            <p className="mt-8 max-w-[80ch] text-[13px] leading-[1.6] text-muted">
+              {t({ en: "Outlets followed", es: "Medios seguidos" }, lang)}
+              {": "}
+              {sources
+                .map((source) =>
+                  source.ok
+                    ? source.name
+                    : `${source.name} (${t({ en: "not responding", es: "sin respuesta" }, lang)})`,
+                )
+                .join(" · ")}
+            </p>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
 function Nav({ tab, lang, variant }: { tab: Tab; lang: Lang; variant: "top" | "dock" }) {
   const shell =
     variant === "top"
@@ -1019,12 +1324,12 @@ function Nav({ tab, lang, variant }: { tab: Tab; lang: Lang; variant: "top" | "d
         const Icon = item.icon;
         const tone =
           variant === "top"
-            ? `flex h-11 items-center gap-2 border-b-2 px-3 text-sm ${
+            ? `flex h-11 items-center gap-2 border-b-2 px-2 text-sm xl:px-3 ${
                 on
                   ? "border-gold font-semibold text-ink"
                   : "border-transparent font-medium text-muted"
               }`
-            : `flex h-14 flex-1 flex-col items-center justify-center gap-1 border-t-2 text-[11px] ${
+            : `flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 border-t-2 text-[10.5px] tracking-[-0.01em] ${
                 on
                   ? "border-gold font-bold text-ink"
                   : "border-transparent font-semibold text-muted"
@@ -1055,6 +1360,8 @@ export function Mesa({ tab, renderedAt }: { tab: Tab; renderedAt: number }) {
   const [party, setParty] = useState<PartyId | null>(null);
   // Graphs and notes are open for every release until the reader closes them.
   const [openNotes, setOpenNotes] = useState<string[]>(() => POLLS.map((poll) => poll.id));
+  // Headlines load on the Live page and, for the one-line strip, on the first page.
+  const live = useLiveFeed(tab === "live" || tab === "now");
 
   useEffect(() => {
     try {
@@ -1144,7 +1451,7 @@ export function Mesa({ tab, renderedAt }: { tab: Tab; renderedAt: number }) {
 
       <header className="sticky top-0 z-30 border-b border-ink bg-paper">
         <div
-          className={`${WRAP} flex flex-wrap items-center justify-between gap-x-8 gap-y-1 py-2.5`}
+          className={`${WRAP} flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5 xl:gap-x-8`}
         >
           <SectionLink
             to="now"
@@ -1196,6 +1503,7 @@ export function Mesa({ tab, renderedAt }: { tab: Tab; renderedAt: number }) {
       <main className="flex-1">
         {tab === "now" && (
           <>
+            <LatestStrip feed={live} lang={lang} />
             <section
               className={`${WRAP} flex flex-wrap items-start gap-x-16 gap-y-10 pt-8 pb-12 md:pt-14`}
             >
@@ -1485,6 +1793,8 @@ export function Mesa({ tab, renderedAt }: { tab: Tab; renderedAt: number }) {
           </>
         )}
 
+        {tab === "live" && <LiveView feed={live} lang={lang} now={now} kicker={phaseKicker} />}
+
         {tab === "polls" && (
           <>
             <section
@@ -1524,7 +1834,7 @@ export function Mesa({ tab, renderedAt }: { tab: Tab; renderedAt: number }) {
                       type="button"
                       aria-pressed={on}
                       onClick={() => setFilter(item.id)}
-                      className={`flex h-11 flex-1 items-center justify-center gap-2 border-l border-line px-3 text-sm font-semibold first:border-l-0 md:flex-none md:px-4 ${
+                      className={`flex h-11 flex-1 items-center justify-center gap-1.5 border-l border-line px-2 text-[13px] font-semibold first:border-l-0 sm:gap-2 sm:px-3 sm:text-sm md:flex-none md:px-4 ${
                         on ? "bg-ink text-inv" : "text-ink"
                       }`}
                     >
@@ -1540,7 +1850,7 @@ export function Mesa({ tab, renderedAt }: { tab: Tab; renderedAt: number }) {
               </div>
             </section>
 
-            <section className={`${WRAP} hidden lg:block`}>
+            <section className={`${WRAP} hidden xl:block`}>
               <div className="flex justify-end pb-2">
                 <button
                   type="button"
@@ -1564,7 +1874,7 @@ export function Mesa({ tab, renderedAt }: { tab: Tab; renderedAt: number }) {
               <PollTable polls={visible} lang={lang} open={openNotes} onToggle={toggleNote} />
             </section>
 
-            <section className={`${WRAP} lg:hidden`}>
+            <section className={`${WRAP} xl:hidden`}>
               <div className="grid gap-x-10 border-b border-line md:grid-cols-2">
                 {visible.map((poll) => (
                   <PollCard key={poll.id} poll={poll} lang={lang} />
