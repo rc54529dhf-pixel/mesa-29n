@@ -4,6 +4,7 @@ import {
   LIVE_OUTLETS,
   cleanText,
   decodeFeed,
+  isCoreElectionItem,
   isElectionItem,
   mergeItems,
   parseFeed,
@@ -114,12 +115,12 @@ describe("isElectionItem", () => {
       assert.equal(isElectionItem(title, ""), true, title);
     }
   });
-  it("keeps headlines that name a candidate or a party", () => {
+  it("keeps headlines that name a candidate or two parties", () => {
     for (const title of [
       "Sánchez intenta asustar a las mujeres con una pérdida de derechos",
       "Feijóo promete bajar impuestos",
-      "El PP acude al Parador de Teruel",
-      "El Frente Amplio presenta su programa",
+      "Colau receta expropiaciones",
+      "El PSOE acusa al PP de usar a la mujer como moneda de cambio",
     ]) {
       assert.equal(isElectionItem(title, ""), true, title);
     }
@@ -134,9 +135,28 @@ describe("isElectionItem", () => {
       "Un directivo avisó a Bruselas de una triquiñuela para eludir su escrutinio",
       "Los vecinos: no podemos seguir así",
       "Ayuso ultima una subida de hasta 400 euros para los profesores",
+      "La Diputación de Toledo aprueba sus presupuestos con la abstención del PSOE",
+      "Pedraz ve insuficiente la documentación dada por el PSOE y reclama nuevos datos",
     ]) {
       assert.equal(isElectionItem(title, ""), false, title);
     }
+  });
+  it("never shows violent crime, even when the headline collides with an election word", () => {
+    assert.equal(
+      isElectionItem(
+        "La Guardia Civil busca al autor de un crimen machista: mató a su pareja el 29-N",
+        "",
+      ),
+      false,
+    );
+    assert.equal(
+      isElectionItem(
+        "Asesinada una mujer en plena campaña",
+        "",
+        "https://elpais.com/espana/elecciones-generales/x.html",
+      ),
+      false,
+    );
   });
   it("trusts the outlet's own election section and strong words in the summary", () => {
     assert.equal(
@@ -155,6 +175,24 @@ describe("isElectionItem", () => {
   });
 });
 
+describe("isCoreElectionItem", () => {
+  it("is true only when the headline or the outlet's section is about the vote", () => {
+    assert.equal(
+      isCoreElectionItem("Últimas horas para votar por correo en las elecciones generales del 29N"),
+      true,
+    );
+    assert.equal(
+      isCoreElectionItem(
+        "Las últimas oposiciones",
+        "https://elpais.com/espana/elecciones-generales/x.html",
+      ),
+      true,
+    );
+    assert.equal(isCoreElectionItem("Sánchez reprocha al CGPJ sus advertencias"), false);
+    assert.equal(isCoreElectionItem("Mató a su pareja el 29-N"), false);
+  });
+});
+
 describe("parseFeed and toItems", () => {
   it("reads RSS, keeps recent election items on the outlet's own domain, without duplicates", () => {
     const items = toItems(elmundo, parseFeed(RSS), NOW);
@@ -166,6 +204,7 @@ describe("parseFeed and toItems", () => {
       ],
     );
     assert.equal(items[0].outlet, "El Mundo");
+    assert.equal(items[0].core, true);
     assert.ok(items[0].url.startsWith("https://www.elmundo.es/espana/2026/11/25/abc123.html"));
     assert.ok(items[0].at > items[1].at);
   });

@@ -70,6 +70,11 @@ export type LiveItem = {
   url: string;
   /** Publication time, milliseconds since the epoch. */
   at: number;
+  /**
+   * The headline itself is about the vote, or the outlet filed it under its
+   * election section. The one-line strip on the first page only uses these.
+   */
+  core: boolean;
 };
 
 export type LiveSource = {
@@ -95,7 +100,7 @@ export type RawEntry = {
   context: string;
 };
 
-const MAX_AGE_MS = 72 * 60 * 60 * 1000;
+const MAX_AGE_MS = 48 * 60 * 60 * 1000;
 const FUTURE_SLACK_MS = 10 * 60 * 1000;
 const PER_OUTLET = 25;
 const TOTAL = 80;
@@ -253,25 +258,48 @@ const PARLIAMENT =
 const CAMPAIGN =
   /\b(las generales|(?<!\b(su|bajo|eludir) )escrutinio(?! (publico|judicial|parlamentario|de bruselas|de la ue))|recuento|campana|sondeos?|encuestas?|candidat[oa]s?|candidaturas?|investidura|escanos?|mayoria absoluta|jornada de reflexion|mitin(es)?|participacion (a las|hasta las|sube|baja|cae|crece|alcanza|se situa|es del|del \d)|cara a cara|debate (electoral|a (dos|tres|cuatro|cinco|seis|siete)))\b/;
 
-/** The candidates and parties on the desk, as written in a headline. Case matters: "Podemos" the party, not "podemos". */
-const NAMES =
-  /\b(Sanchez|Feijoo|Abascal|Colau|PSOE|PP|Vox|VOX|Frente Amplio|Podemos|Junts|ERC|Bildu|PNV|BNG)\b/;
+/**
+ * The candidates and parties on the desk, as written in a headline. Case matters:
+ * "Podemos" the party, not "podemos". A candidate's name is enough; a party's is
+ * not, because a court case or a town budget names one party too. Two parties in
+ * one headline is the campaign.
+ */
+const CANDIDATES = /\b(Sanchez|Feijoo|Abascal|Colau)\b/;
+const PARTIES = /\b(PSOE|PP|Vox|VOX|Frente Amplio|Podemos|Junts|ERC|Bildu|PNV|BNG)\b/g;
+
+function namesTheContest(plain: string): boolean {
+  if (CANDIDATES.test(plain)) return true;
+  const parties = new Set((plain.match(PARTIES) ?? []).map((party) => party.toLowerCase()));
+  return parties.size >= 2;
+}
+
+/** Violent-crime vocabulary. Such a headline is never shown, whatever else it mentions. */
+const CRIME =
+  /\b(crimen(es)?|asesin\w*|mato|matar|homicid\w*|navajazos?|apunal\w*|violacion(es)?|agresion sexual|cadaver(es)?|tiroteo)\b/;
 
 /** The outlet filed the article under its own election section. */
 const ELECTION_PATH = /\/elecciones[-/]/;
 
 /**
- * Whether a feed item belongs on the Live page: it uses election vocabulary,
- * names a candidate or party in the headline, or the outlet filed it under its
+ * Whether a feed item belongs on the Live page: its headline uses election
+ * vocabulary, names a candidate or two parties, or the outlet filed it under its
  * election section.
  */
+/** The stricter test behind `LiveItem.core`: the headline or the outlet's own section says "election". */
+export function isCoreElectionItem(title: string, url = ""): boolean {
+  const folded = fold(title);
+  if (CRIME.test(folded)) return false;
+  return STRONG.test(folded) || CAMPAIGN.test(folded) || ELECTION_PATH.test(url);
+}
+
 export function isElectionItem(title: string, context: string, url = ""): boolean {
   const plain = stripAccents(title);
   const folded = plain.toLowerCase();
+  if (CRIME.test(folded)) return false;
   if (STRONG.test(folded) || CAMPAIGN.test(folded)) return true;
   if (VOTE.test(folded) && !PARLIAMENT.test(folded)) return true;
   if (ELECTION_PATH.test(url)) return true;
-  if (NAMES.test(plain)) return true;
+  if (namesTheContest(plain)) return true;
   return STRONG.test(fold(context));
 }
 
@@ -296,7 +324,7 @@ function hash(text: string): string {
   return h.toString(36);
 }
 
-/** One outlet's entries, filtered to election items from the last three days, newest first. */
+/** One outlet's entries, filtered to election items from the last two days, newest first. */
 export function toItems(outlet: LiveOutlet, entries: RawEntry[], now: number): LiveItem[] {
   const seen = new Set<string>();
   const items: LiveItem[] = [];
@@ -314,7 +342,14 @@ export function toItems(outlet: LiveOutlet, entries: RawEntry[], now: number): L
     if (seen.has(key) || seen.has(titleKey)) continue;
     seen.add(key);
     seen.add(titleKey);
-    items.push({ id: `${outlet.id}-${hash(key)}`, outlet: outlet.name, title, url, at });
+    items.push({
+      id: `${outlet.id}-${hash(key)}`,
+      outlet: outlet.name,
+      title,
+      url,
+      at,
+      core: isCoreElectionItem(entry.title, url),
+    });
   }
   items.sort((a, b) => b.at - a.at);
   return items.slice(0, PER_OUTLET);

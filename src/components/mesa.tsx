@@ -1092,15 +1092,18 @@ function groupByDay(items: LiveItem[], now: number, lang: Lang): DayGroup[] {
 
 /** One line on the first page: the newest headline, linking to the Live page. */
 function LatestStrip({ feed, lang }: { feed: LiveFeed; lang: Lang }) {
-  const item = feed.data?.items[0];
+  // The newest headline that is plainly about the vote, not just one that names a candidate.
+  const item = feed.data?.items.find((entry) => entry.core);
   return (
     <div className="border-b border-line">
-      <SectionLink to="live" className={`${WRAP} flex h-11 items-center gap-3 text-sm`}>
+      <SectionLink to="live" className={`${WRAP} flex h-[60px] items-center gap-3 text-sm sm:h-11`}>
         <span className={`inline-flex shrink-0 items-center gap-2 ${LABEL} text-gold-ink`}>
-          <Radio className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
-          {t({ en: "Latest", es: "Última hora" }, lang)}
+          <Radio className="size-4 shrink-0 sm:size-3.5" strokeWidth={2} aria-hidden="true" />
+          <span className="sr-only sm:not-sr-only">
+            {t({ en: "Latest", es: "Última hora" }, lang)}
+          </span>
         </span>
-        <span className="min-w-0 flex-1 truncate font-medium">
+        <span className="line-clamp-2 min-w-0 flex-1 leading-snug font-medium sm:line-clamp-1">
           {item
             ? item.title
             : t(
