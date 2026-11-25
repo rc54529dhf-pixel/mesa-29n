@@ -8,6 +8,7 @@ import {
   type LiveOutlet,
   type LivePayload,
 } from "./feeds";
+import { addEnglish } from "./translate.server";
 
 const USER_AGENT = "Mesa29N/1.0 (+https://mesa-29n.vercel.app; election desk headline reader)";
 const FEED_TIMEOUT_MS = 4500;
@@ -45,12 +46,15 @@ async function readOutlet(
   return { ok: false, items: [] };
 }
 
-async function build(): Promise<LivePayload> {
+async function build(aiToken: string | undefined): Promise<LivePayload> {
   const now = Date.now();
   const results = await Promise.all(LIVE_OUTLETS.map((outlet) => readOutlet(outlet, now)));
+  const items = mergeItems(results.map((result) => result.items));
+  const translation = await addEnglish(items, aiToken);
   return {
     fetchedAt: now,
-    items: mergeItems(results.map((result) => result.items)),
+    items,
+    translation,
     sources: LIVE_OUTLETS.map((outlet, index) => ({
       id: outlet.id,
       name: outlet.name,
@@ -61,13 +65,15 @@ async function build(): Promise<LivePayload> {
 }
 
 /**
- * The merged headline list. Kept in memory for a minute so a burst of requests
- * reads each outlet once; the CDN caches the response on top of that.
+ * The merged headline list, with English headlines where a translation exists.
+ * Kept in memory for a minute so a burst of requests reads each outlet once;
+ * the CDN caches the response on top of that. `aiToken` authorises the
+ * translation call; without it the list is Spanish only.
  */
-export async function loadLive(): Promise<LivePayload> {
+export async function loadLive(aiToken?: string): Promise<LivePayload> {
   if (memory && Date.now() - memory.at < MEMORY_TTL_MS) return memory.payload;
   if (!inFlight) {
-    inFlight = build()
+    inFlight = build(aiToken)
       .then((payload) => {
         // A round in which no outlet answered does not replace a good one.
         if (payload.sources.some((source) => source.ok) || !memory) {

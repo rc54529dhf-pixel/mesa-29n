@@ -1090,6 +1090,11 @@ function groupByDay(items: LiveItem[], now: number, lang: Lang): DayGroup[] {
   return groups;
 }
 
+/** The headline to show: the machine translation in the English version when there is one, else the original. */
+function headline(item: LiveItem, lang: Lang): string {
+  return lang === "en" && item.titleEn ? item.titleEn : item.title;
+}
+
 /** One line on the first page: the newest headline, linking to the Live page. */
 function LatestStrip({ feed, lang }: { feed: LiveFeed; lang: Lang }) {
   // The newest headline that is plainly about the vote, not just one that names a candidate.
@@ -1105,7 +1110,7 @@ function LatestStrip({ feed, lang }: { feed: LiveFeed; lang: Lang }) {
         </span>
         <span className="line-clamp-2 min-w-0 flex-1 leading-snug font-medium sm:line-clamp-1">
           {item
-            ? item.title
+            ? headline(item, lang)
             : t(
                 {
                   en: "Election headlines from Spanish media",
@@ -1156,7 +1161,7 @@ function LiveView({
           <p className="max-w-[64ch] text-base leading-[1.6] text-muted">
             {t(
               {
-                en: "Election headlines from Spanish media, newest first. Each one links to the outlet’s own article. They are picked automatically by keyword. The desk does not write or check them. Times are Madrid time.",
+                en: "Election headlines from Spanish media, newest first. Each one links to the outlet’s own article. They are picked automatically by keyword. The desk does not write or check them. The English is a machine translation, with the original headline underneath. Times are Madrid time.",
                 es: "Titulares electorales de medios españoles, del más reciente al más antiguo. Cada uno enlaza al artículo del propio medio. Se seleccionan automáticamente por palabras clave. La mesa no los redacta ni los comprueba. Las horas son de Madrid.",
               },
               lang,
@@ -1249,6 +1254,8 @@ function LiveView({
               <ol>
                 {group.items.map((item) => {
                   const recent = ago(item.at, now, lang);
+                  const shown = headline(item, lang);
+                  const translated = shown !== item.title;
                   return (
                     <li
                       key={item.id}
@@ -1263,9 +1270,18 @@ function LiveView({
                           href={item.url}
                           target="_blank"
                           rel="noreferrer"
+                          lang={translated ? undefined : "es"}
                         >
-                          {item.title}
+                          {shown}
                         </a>
+                        {translated && (
+                          <span
+                            lang="es"
+                            className="max-w-[68ch] text-[13.5px] leading-snug text-muted"
+                          >
+                            {item.title}
+                          </span>
+                        )}
                         <span
                           className={`inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 ${LABEL} text-muted`}
                         >

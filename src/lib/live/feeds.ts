@@ -67,6 +67,8 @@ export type LiveItem = {
   /** Outlet display name. */
   outlet: string;
   title: string;
+  /** Machine translation of the headline into English, when one is available. */
+  titleEn?: string;
   url: string;
   /** Publication time, milliseconds since the epoch. */
   at: number;
@@ -86,10 +88,20 @@ export type LiveSource = {
   kept: number;
 };
 
+/** How the English headlines stand; for checking the service, not shown to readers. */
+export type LiveTranslation = {
+  translated: number;
+  pending: number;
+  /** "shared": translations are kept across server instances. "instance": only in this one. */
+  store: "shared" | "instance";
+  note: string;
+};
+
 export type LivePayload = {
   fetchedAt: number;
   items: LiveItem[];
   sources: LiveSource[];
+  translation?: LiveTranslation;
 };
 
 export type RawEntry = {
